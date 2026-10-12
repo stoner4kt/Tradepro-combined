@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+coverage/
+.agent_tmp/
+.wrangler/
+server/.wrangler/
+.dev.vars
+server/.dev.vars
+client/public/widget.js
+.vite

@@ -1,0 +1,7 @@
+# Supabase local development configuration (supabase CLI).
+# This file only affects `supabase start` / `supabase functions serve` locally.
+# Remote secrets are set with `supabase secrets set`, never in this file.
+
+project_id = "crm-with-reviews"
+[functions]
+verify_jwt = false

@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "description": "Static SPA deployment — no Pages Functions. All assets are served statically; client-side routes (/leads, /reviews, /settings, /ledger, …) fall back to /index.html via _redirects so deep links never 404 on refresh.",
+  "include": ["/"],
+  "exclude": []
+}
