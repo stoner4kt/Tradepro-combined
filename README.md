@@ -36,7 +36,7 @@ See **[SETUP-GUIDE.md](./SETUP-GUIDE.md)** for the exact deployment steps.
 │   │   ├── services/            # auth, email, reviewFlow integration
 │   │   ├── store/               # Store interface + LocalStore + SupabaseStore
 │   │   └── utils/               # config, jwt, logger, validation
-│   ├── wrangler.jsonc           # non-secret vars + deploy config (no keep_vars)
+│   ├── wrangler.jsonc           # deploy config; vars set in the dashboard
 │   └── .env.example
 └── client/                      # Cloudflare Pages — React + Vite dashboard
     ├── src/
@@ -166,7 +166,7 @@ npm run deploy:worker -w server     # uses server/wrangler.jsonc
 | `INTEGRATION_SECRET` | shared with the Worker |
 
 No real secrets are committed — all values are placeholders in
-`.env.example` files or `wrangler.jsonc` `vars` (non-secret only).
+`.env.example` files, and the Worker vars live in the Cloudflare dashboard.
 
 ## License
 

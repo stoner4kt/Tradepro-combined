@@ -28,15 +28,42 @@
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
   "keep_vars": true,
-  "vars": {
-    "NODE_ENV": "production",
-    "CORS_ORIGIN": "https://tradepro-combined.pages.dev",
-    "REVIEWFLOW_AUTO_SEND": "true",
-    "SUPABASE_URL": "https://kyysddfdrgdocbxyrvqp.supabase.co",
-    "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5eXNkZGZkcmdkb2NieHlydnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NTk3MjgsImV4cCI6MjEwODMzNTcyOH0.7siGOX36y-XXpvQOSc-_5iS3KP_9DXxlJc-pv-WDlP8",
-    "REVIEWFLOW_URL": "https://kyysddfdrgdocbxyrvqp.supabase.co"
-  },
   "observability": {
     "enabled": true
   }
 }
+
+// ---------------------------------------------------------------------------
+// NO "vars" BLOCK BY DESIGN — the Cloudflare dashboard is the source of truth
+// for every runtime variable. `keep_vars: true` above stops a deploy from
+// deleting bindings that were created there.
+//
+// Configure these in Workers & Pages → tradepro-combined → Settings →
+// Variables and Secrets (plain text):
+//
+//   NODE_ENV               production
+//   CORS_ORIGIN            https://tradepro-combined.pages.dev
+//   REVIEWFLOW_AUTO_SEND   true
+//   SUPABASE_URL           https://<ref>.supabase.co
+//   SUPABASE_ANON_KEY      <anon key>
+//   REVIEWFLOW_URL         https://<ref>.supabase.co   (same Supabase project)
+//
+// …and as encrypted secrets:
+//
+//   JWT_SECRET             signs CRM session tokens; unset ⇒ falls back to a
+//                          value committed in this repo (auth bypass)
+//   SUPABASE_SERVICE_KEY   service-role key (note: NOT SUPABASE_SERVICE_ROLE_KEY)
+//   RESEND_API_KEY         transactional + review email
+//   REVIEWFLOW_SECRET      MUST equal INTEGRATION_SECRET on the edge functions
+//   CAPTURE_SECRET         optional — only if REQUIRE_CAPTURE_SECRET is set
+//   RESEND_FROM_EMAIL      optional (defaults to onboarding@resend.dev)
+//   RESEND_REPLY_TO        optional
+//
+// Adding a key here would silently override the dashboard value on every
+// deploy, which is exactly what this file avoids.
+//
+// Local development:
+//   `npm run dev:worker` (wrangler dev) reads server/.dev.vars
+//   `npm run dev` (Node/tsx)        reads server/.env
+// Both are gitignored; see server/.dev.vars.example and server/.env.example.
+// ---------------------------------------------------------------------------
