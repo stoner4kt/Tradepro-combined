@@ -10,18 +10,9 @@
   // deleted by a deploy (wrangler hardcodes keep_secrets: true), so JWT_SECRET
   // and friends set in the dashboard survive regardless of this flag.
   //
-  // Keys listed in "vars" below are still applied from this file and overwrite
-  // same-named dashboard values. Remove a key here if the dashboard should own
-  // it.
-  //
-  //  Non-secret variables → declared in "vars" below.
-  //  Secrets              → set in the Cloudflare dashboard (Worker → Settings
-  //                         → Variables and Secrets) or `wrangler secret put`:
-  //                            JWT_SECRET
-  //                            SUPABASE_SERVICE_KEY
-  //                            RESEND_API_KEY
-  //                            INTEGRATION_SECRET   (= REVIEWFLOW_SECRET alias)
-  //                            CAPTURE_SECRET
+  // There is deliberately no "vars" block in this file (see the comment block
+  // at the bottom): the Cloudflare dashboard is the source of truth for every
+  // runtime variable.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tradepro-combined",
   "main": "src/worker.ts",
