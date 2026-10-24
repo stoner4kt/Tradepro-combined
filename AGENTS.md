@@ -35,8 +35,15 @@ login. npm workspaces (`server`, `client`); edge functions under
   the eight `[functions.<name>]` blocks.
 - **`createFreshStore()` must return `resolveStore()`**, not `new LocalStore()`
   — the latter silently drops data in production (fixed in this repo).
-- **`wrangler.jsonc` must NOT set `keep_vars: true`** (breaks Worker Builds:
-  "Unable to fetch bindings..."). Vars in config, secrets as dashboard secrets.
+- **`wrangler.jsonc` sets `keep_vars: true`** so dashboard-managed plain-text
+  vars survive a deploy; keys in `vars` still overwrite same-named dashboard
+  values. Secrets (`JWT_SECRET`, `SUPABASE_SERVICE_KEY`, …) live in the
+  dashboard and are never deleted — wrangler hardcodes `keep_secrets: true`.
+  The old "Unable to fetch bindings, routes, or services metadata from the
+  dashboard" failure is **not** caused by `keep_vars`: `preUploadApiChecks`
+  calls `downloadWorkerConfig` whenever the Worker's `last_deployed_from` is
+  `"dash"`, so it only affects the first wrangler deploy of a
+  dashboard-created Worker.
 
 ## Build & test
 

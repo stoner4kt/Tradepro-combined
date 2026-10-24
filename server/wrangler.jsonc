@@ -3,15 +3,18 @@
   // Express runs inside the Worker via the node:http compatibility layer.
   // Deploy:  npm run deploy:worker  (or  wrangler deploy --config wrangler.jsonc)
   //
-  // IMPORTANT: do NOT set "keep_vars": true in this file. When keep_vars is
-  // set, wrangler first fetches the worker's existing dashboard bindings, and
-  // that metadata fetch FAILS inside the Worker Builds deploy sandbox with
-  // "Unable to fetch bindings, routes, or services metadata from the
-  // dashboard." The correct pattern for Worker Builds is: vars in config +
-  // secrets in the dashboard.
+  // keep_vars: preserves plain-text variables that were set in the Cloudflare
+  // dashboard instead of deleting them on deploy. In Wrangler 4.x it compiles
+  // to `keep_bindings: ["plain_text","json"]` in the upload metadata — no extra
+  // dashboard API call — so it is safe inside Worker Builds. Secrets are never
+  // deleted by a deploy (wrangler hardcodes keep_secrets: true), so JWT_SECRET
+  // and friends set in the dashboard survive regardless of this flag.
   //
-  //  Non-secret variables → declared in "vars" below. Set the real values
-  //                         before deploying.
+  // Keys listed in "vars" below are still applied from this file and overwrite
+  // same-named dashboard values. Remove a key here if the dashboard should own
+  // it.
+  //
+  //  Non-secret variables → declared in "vars" below.
   //  Secrets              → set in the Cloudflare dashboard (Worker → Settings
   //                         → Variables and Secrets) or `wrangler secret put`:
   //                            JWT_SECRET
@@ -24,6 +27,7 @@
   "main": "src/worker.ts",
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
+  "keep_vars": true,
   "vars": {
     "NODE_ENV": "production",
     "CORS_ORIGIN": "https://tradepro-combined.pages.dev",
