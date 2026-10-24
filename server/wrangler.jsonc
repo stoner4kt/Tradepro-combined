@@ -20,17 +20,17 @@
   //                            INTEGRATION_SECRET   (= REVIEWFLOW_SECRET alias)
   //                            CAPTURE_SECRET
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "crm-with-reviews-api",
+  "name": "tradepro-combined",
   "main": "src/worker.ts",
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
   "vars": {
     "NODE_ENV": "production",
-    "CORS_ORIGIN": "https://crm-with-reviews.pages.dev",
+    "CORS_ORIGIN": "https://tradepro-combined.pages.dev",
     "REVIEWFLOW_AUTO_SEND": "true",
-    "SUPABASE_URL": "https://<your-supabase-project>.supabase.co",
-    "SUPABASE_ANON_KEY": "your-supabase-anon-key",
-    "REVIEWFLOW_URL": "https://<your-supabase-project>.supabase.co"
+    "SUPABASE_URL": "https://kyysddfdrgdocbxyrvqp.supabase.co",
+    "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5eXNkZGZkcmdkb2NieHlydnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NTk3MjgsImV4cCI6MjEwODMzNTcyOH0.7siGOX36y-XXpvQOSc-_5iS3KP_9DXxlJc-pv-WDlP8",
+    "REVIEWFLOW_URL": "https://kyysddfdrgdocbxyrvqp.supabase.co"
   },
   "observability": {
     "enabled": true
