@@ -19,7 +19,9 @@ export function adminClient(): SupabaseClient {
   if (!url || !key) {
     throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not configured as secrets on this function");
   }
-  return createClient(url, key);
+  // Reviews data lives in the `reviewflow` schema (see migration 0003); without
+  // this every .from() would silently hit the CRM tables in `public`.
+  return createClient(url, key, { db: { schema: "reviewflow" } });
 }
 
 /** Verifies the x-integration-secret against INTEGRATION_SECRET. */

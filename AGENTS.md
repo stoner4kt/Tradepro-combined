@@ -24,11 +24,26 @@ login. npm workspaces (`server`, `client`); edge functions under
   (`resolveWidgetOwner` in `_shared/supabase.ts`). The RPC
   `reviewflow.rotate_widget_api_key` uses `auth.uid()` and therefore does NOT
   work under the service-role client — `integration-settings` rotates the key
-  inline instead.
+  inline instead. `adminClient()` must pass `{ db: { schema: "reviewflow" } }`
+  — without it every `.from()` hits the CRM tables in `public`.
+- **`reviewflow` must be an exposed schema** (Dashboard → Project Settings →
+  API → Exposed schemas), otherwise PostgREST rejects the service-role client
+  with `PGRST106` regardless of RLS.
+- **`verify_jwt` is per-function in `supabase/config.toml`.** A bare
+  `[functions] verify_jwt = false` is ignored by the CLI, so the gateway 401s
+  every call before the function runs. Deploy with `--no-verify-jwt` or keep
+  the eight `[functions.<name>]` blocks.
 - **`createFreshStore()` must return `resolveStore()`**, not `new LocalStore()`
   — the latter silently drops data in production (fixed in this repo).
-- **`wrangler.jsonc` must NOT set `keep_vars: true`** (breaks Worker Builds:
-  "Unable to fetch bindings..."). Vars in config, secrets as dashboard secrets.
+- **`wrangler.jsonc` sets `keep_vars: true`** so dashboard-managed plain-text
+  vars survive a deploy; keys in `vars` still overwrite same-named dashboard
+  values. Secrets (`JWT_SECRET`, `SUPABASE_SERVICE_KEY`, …) live in the
+  dashboard and are never deleted — wrangler hardcodes `keep_secrets: true`.
+  The old "Unable to fetch bindings, routes, or services metadata from the
+  dashboard" failure is **not** caused by `keep_vars`: `preUploadApiChecks`
+  calls `downloadWorkerConfig` whenever the Worker's `last_deployed_from` is
+  `"dash"`, so it only affects the first wrangler deploy of a
+  dashboard-created Worker.
 
 ## Build & test
 

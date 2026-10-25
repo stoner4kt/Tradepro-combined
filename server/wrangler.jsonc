@@ -3,36 +3,58 @@
   // Express runs inside the Worker via the node:http compatibility layer.
   // Deploy:  npm run deploy:worker  (or  wrangler deploy --config wrangler.jsonc)
   //
-  // IMPORTANT: do NOT set "keep_vars": true in this file. When keep_vars is
-  // set, wrangler first fetches the worker's existing dashboard bindings, and
-  // that metadata fetch FAILS inside the Worker Builds deploy sandbox with
-  // "Unable to fetch bindings, routes, or services metadata from the
-  // dashboard." The correct pattern for Worker Builds is: vars in config +
-  // secrets in the dashboard.
+  // keep_vars: preserves plain-text variables that were set in the Cloudflare
+  // dashboard instead of deleting them on deploy. In Wrangler 4.x it compiles
+  // to `keep_bindings: ["plain_text","json"]` in the upload metadata — no extra
+  // dashboard API call — so it is safe inside Worker Builds. Secrets are never
+  // deleted by a deploy (wrangler hardcodes keep_secrets: true), so JWT_SECRET
+  // and friends set in the dashboard survive regardless of this flag.
   //
-  //  Non-secret variables → declared in "vars" below. Set the real values
-  //                         before deploying.
-  //  Secrets              → set in the Cloudflare dashboard (Worker → Settings
-  //                         → Variables and Secrets) or `wrangler secret put`:
-  //                            JWT_SECRET
-  //                            SUPABASE_SERVICE_KEY
-  //                            RESEND_API_KEY
-  //                            INTEGRATION_SECRET   (= REVIEWFLOW_SECRET alias)
-  //                            CAPTURE_SECRET
+  // There is deliberately no "vars" block in this file (see the comment block
+  // at the bottom): the Cloudflare dashboard is the source of truth for every
+  // runtime variable.
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "crm-with-reviews-api",
+  "name": "tradepro-combined",
   "main": "src/worker.ts",
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
-  "vars": {
-    "NODE_ENV": "production",
-    "CORS_ORIGIN": "https://crm-with-reviews.pages.dev",
-    "REVIEWFLOW_AUTO_SEND": "true",
-    "SUPABASE_URL": "https://<your-supabase-project>.supabase.co",
-    "SUPABASE_ANON_KEY": "your-supabase-anon-key",
-    "REVIEWFLOW_URL": "https://<your-supabase-project>.supabase.co"
-  },
+  "keep_vars": true,
   "observability": {
     "enabled": true
   }
 }
+
+// ---------------------------------------------------------------------------
+// NO "vars" BLOCK BY DESIGN — the Cloudflare dashboard is the source of truth
+// for every runtime variable. `keep_vars: true` above stops a deploy from
+// deleting bindings that were created there.
+//
+// Configure these in Workers & Pages → tradepro-combined → Settings →
+// Variables and Secrets (plain text):
+//
+//   NODE_ENV               production
+//   CORS_ORIGIN            https://tradepro-combined.pages.dev
+//   REVIEWFLOW_AUTO_SEND   true
+//   SUPABASE_URL           https://<ref>.supabase.co
+//   SUPABASE_ANON_KEY      <anon key>
+//   REVIEWFLOW_URL         https://<ref>.supabase.co   (same Supabase project)
+//
+// …and as encrypted secrets:
+//
+//   JWT_SECRET             signs CRM session tokens; unset ⇒ falls back to a
+//                          value committed in this repo (auth bypass)
+//   SUPABASE_SERVICE_KEY   service-role key (note: NOT SUPABASE_SERVICE_ROLE_KEY)
+//   RESEND_API_KEY         transactional + review email
+//   REVIEWFLOW_SECRET      MUST equal INTEGRATION_SECRET on the edge functions
+//   CAPTURE_SECRET         optional — only if REQUIRE_CAPTURE_SECRET is set
+//   RESEND_FROM_EMAIL      optional (defaults to onboarding@resend.dev)
+//   RESEND_REPLY_TO        optional
+//
+// Adding a key here would silently override the dashboard value on every
+// deploy, which is exactly what this file avoids.
+//
+// Local development:
+//   `npm run dev:worker` (wrangler dev) reads server/.dev.vars
+//   `npm run dev` (Node/tsx)        reads server/.env
+// Both are gitignored; see server/.dev.vars.example and server/.env.example.
+// ---------------------------------------------------------------------------

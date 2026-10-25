@@ -1,0 +1,19 @@
+# Local-only runtime variables for `npm run dev:worker` (wrangler dev).
+# Copy to server/.dev.vars (gitignored). Production values live in the
+# Cloudflare dashboard — see the comment block at the end of wrangler.jsonc.
+#
+# `npm run dev` (Node/tsx) does not read this file; it uses server/.env.
+
+NODE_ENV=development
+CORS_ORIGIN=*
+
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_KEY=your-service-role-key
+
+REVIEWFLOW_URL=https://your-project.supabase.co
+REVIEWFLOW_AUTO_SEND=true
+
+JWT_SECRET=change-me-to-a-long-random-string
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=TradePro CRM <onboarding@resend.dev>

@@ -3,5 +3,31 @@
 # Remote secrets are set with `supabase secrets set`, never in this file.
 
 project_id = "crm-with-reviews"
-[functions]
+
+# The CLI ignores a bare `[functions]` table — verify_jwt must be set per
+# function. Every function here is authenticated by its own mechanism
+# (x-integration-secret for integration-*, x-widget-key for capture-lead and
+# send-review-email), so the Supabase JWT gateway check must stay off.
+[functions.capture-lead]
+verify_jwt = false
+
+[functions.send-review-email]
+verify_jwt = false
+
+[functions.integration-capture]
+verify_jwt = false
+
+[functions.integration-lead]
+verify_jwt = false
+
+[functions.integration-lookup]
+verify_jwt = false
+
+[functions.integration-overview]
+verify_jwt = false
+
+[functions.integration-send-review]
+verify_jwt = false
+
+[functions.integration-settings]
 verify_jwt = false

@@ -29,8 +29,9 @@ the CRM schema, the ReviewFlow schema and all edge functions.
 2. **Deploy the edge functions** and set their secrets
    (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`,
    `INTEGRATION_SECRET`).
-3. **Deploy the Cloudflare Worker** (`server/`) — vars in `wrangler.jsonc`,
-   secrets with `wrangler secret put` (or the dashboard).
+3. **Deploy the Cloudflare Worker** (`server/`) — vars and secrets both in the
+   Cloudflare dashboard (the config file sets `keep_vars: true` so deploys
+   preserve them).
 4. **Deploy the Cloudflare Pages site** (`client/`) with `npm run build:all`
    (output `dist/`), `VITE_API_URL`, `VITE_APP_URL`, `VITE_SUPABASE_URL`,
    `VITE_ENABLE_REVIEWS_INTEGRATION=true`.
@@ -187,26 +188,25 @@ The API is an Express app running inside a Worker via the Cloudflare
 
 ### 3.1 Configure vars
 
-Non-secret vars go in **`server/wrangler.jsonc`**:
+**The Cloudflare dashboard is the source of truth.** `server/wrangler.jsonc`
+deliberately has no `vars` block; it sets `keep_vars: true` so a deploy never
+deletes bindings created in the dashboard. Add these under **Workers & Pages →
+tradepro-combined → Settings → Variables and Secrets** as plain-text variables:
 
-```jsonc
-"vars": {
-  "NODE_ENV": "production",
-  "CORS_ORIGIN": "https://<your-pages-domain>.pages.dev",
-  "REVIEWFLOW_AUTO_SEND": "true",
-  "SUPABASE_URL": "https://<ref>.supabase.co",
-  "SUPABASE_ANON_KEY": "<anon-key>",
-  "REVIEWFLOW_URL": "https://<ref>.supabase.co"
-}
-```
+| Variable | Value |
+|---|---|
+| `NODE_ENV` | `production` |
+| `CORS_ORIGIN` | `https://<your-pages-domain>.pages.dev` |
+| `REVIEWFLOW_AUTO_SEND` | `true` |
+| `SUPABASE_URL` | `https://<ref>.supabase.co` |
+| `SUPABASE_ANON_KEY` | `<anon-key>` |
+| `REVIEWFLOW_URL` | `https://<ref>.supabase.co` |
 
 `REVIEWFLOW_URL` is **the same Supabase project** now (edge functions live on
 it under `/functions/v1`).
 
-> ⚠️ **Do not set `keep_vars: true`** in `wrangler.jsonc` — it breaks
-> Cloudflare Worker Builds with “Unable to fetch bindings, routes, or services
-> metadata from the dashboard.” Keep vars in the config and secrets in the
-> dashboard / `wrangler secret put`.
+> Do not add a `vars` block back into `wrangler.jsonc`: any key present there
+> overrides the dashboard value on every push, which defeats the point.
 
 ### 3.2 Set secrets
 
@@ -238,16 +238,16 @@ Health check: `GET https://<worker>.workers.dev/api/health` should return
 
 | Env var | Where | Required |
 |---|---|---|
-| `SUPABASE_URL` | wrangler vars | yes |
-| `SUPABASE_ANON_KEY` | wrangler vars | yes |
+| `SUPABASE_URL` | dashboard vars | yes |
+| `SUPABASE_ANON_KEY` | dashboard vars | yes |
 | `SUPABASE_SERVICE_KEY` | secret | yes |
 | `JWT_SECRET` | secret | yes |
-| `REVIEWFLOW_URL` | wrangler vars (same as SUPABASE_URL) | for Reviews |
+| `REVIEWFLOW_URL` | dashboard vars (same as SUPABASE_URL) | for Reviews |
 | `REVIEWFLOW_SECRET` | secret (= INTEGRATION_SECRET on functions) | for Reviews |
-| `REVIEWFLOW_AUTO_SEND` | wrangler vars | for auto-send |
+| `REVIEWFLOW_AUTO_SEND` | dashboard vars | for auto-send |
 | `RESEND_API_KEY` | secret | for email |
 | `RESEND_FROM_EMAIL` / `RESEND_REPLY_TO` | secret | optional overrides |
-| `CORS_ORIGIN` | wrangler vars | yes |
+| `CORS_ORIGIN` | dashboard vars | yes |
 | `CAPTURE_SECRET` / `REQUIRE_CAPTURE_SECRET` | secret/s | optional |
 | `JWT_EXPIRES_IN` | secret/vars | optional (default 7d) |
 
