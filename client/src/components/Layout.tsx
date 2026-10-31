@@ -75,7 +75,7 @@ export default function Layout() {
       aria-haspopup="menu"
       aria-expanded={menuOpen}
       aria-label="Account menu"
-      className="flex h-9 w-9 items-center justify-center rounded-full bg-white/25 text-xs font-bold text-white ring-1 ring-inset ring-white/40 transition duration-150 hover:bg-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+      className="flex h-11 w-11 items-center justify-center rounded-full bg-white/25 text-xs font-bold text-white ring-1 ring-inset ring-white/40 transition duration-150 hover:bg-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white md:h-9 md:w-9"
     >
       {initials}
     </button>
@@ -85,7 +85,7 @@ export default function Layout() {
     <div className="min-h-screen bg-page">
       <header className="sticky top-0 z-30 h-14 border-b border-brand-700 bg-brand-600 shadow-sm">
         <div className="mx-auto flex h-full max-w-[1280px] items-center gap-6 px-4 sm:px-6">
-          <Link to="/" className="flex min-w-0 items-center gap-2.5" aria-label="TradePro home">
+          <Link to="/" className="flex min-h-[44px] min-w-0 items-center gap-2.5" aria-label="TradePro home">
             <LogoMark />
             <span className="hidden text-[15px] font-bold tracking-wide text-white sm:block">TradePro</span>
           </Link>

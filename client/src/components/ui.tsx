@@ -40,7 +40,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function Button({ variant = 'primary', size = 'md', className, ...props }: ButtonProps) {
-  const sizeClass = size === 'sm' ? 'h-9 px-3 text-[13px]' : 'h-11 px-4 text-sm';
+  const sizeClass = size === 'sm' ? 'h-11 px-3 text-[13px] sm:h-9 sm:px-3.5' : 'h-11 px-4 text-sm';
   return (
     <button
       {...props}

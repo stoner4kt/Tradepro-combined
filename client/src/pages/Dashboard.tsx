@@ -43,7 +43,7 @@ export default function DashboardPage() {
     { label: 'Emails sent', value: stats.emailsSent, to: '/ledger', bg: 'bg-[#e2e8f0]', accent: 'text-[#334155]', icon: 'M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75' },
   ];
 
-  const viewAllClass = 'text-xs font-semibold text-brand-600 transition duration-150 hover:text-brand-700';
+  const viewAllClass = '-m-1 flex h-11 items-center px-1 text-xs font-semibold text-brand-600 transition duration-150 hover:text-brand-700 sm:h-auto sm:p-0 sm:text-[13px]';
 
   return (
     <div className="space-y-5">

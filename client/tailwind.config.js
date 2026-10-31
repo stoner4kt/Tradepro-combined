@@ -14,7 +14,6 @@ export default {
         ink: '#1e293b',
         muted: '#5b6b80',
         line: '#e1e6ee',
-        bar: '#1d6fe8',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],

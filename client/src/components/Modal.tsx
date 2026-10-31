@@ -26,7 +26,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
           <h3 className="truncate pr-4 text-[15px] font-semibold text-ink">{title}</h3>
           <button
             onClick={onClose}
-            className="-mr-1 rounded-lg p-2 text-muted transition duration-150 hover:bg-slate-100 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+            className="-mr-1 flex h-11 w-11 items-center justify-center rounded-lg text-muted transition duration-150 hover:bg-slate-100 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:h-9 sm:w-9"
             aria-label="Close"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
