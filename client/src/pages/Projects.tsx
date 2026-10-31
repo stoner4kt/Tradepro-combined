@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import { ApiError } from '../lib/api.js';
 import type { Client, Project, ProjectPriority, ProjectStatus } from '../types/api.js';
-import { Alert, Button, Card, EmptyState, Field, Input, Select, Spinner, Textarea } from '../components/ui.js';
+import { Alert, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, Textarea } from '../components/ui.js';
 import { Modal } from '../components/Modal.js';
 import { PROJECT_PRIORITIES, PROJECT_STATUSES, PriorityBadge, ProjectStatusBadge, ReviewStatusBadge, fmtDate, fmtMoney } from '../components/badges.js';
 
@@ -27,29 +27,35 @@ export default function ProjectsPage() {
   }, [load]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Projects</h1>
-          <p className="mt-1 text-sm text-slate-500">Jobs on your board — scheduled, in progress, and done.</p>
-        </div>
-        <Button onClick={() => setShowCreate(true)}>+ New project</Button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        section="Projects"
+        subpage={statusFilter ? `Filtered by ${statusFilter.replace('_', ' ')}` : undefined}
+        actions={<Button onClick={() => setShowCreate(true)}>+ New project</Button>}
+      >
+        <p className="mt-0.5 text-[13px] text-muted">Jobs on your board — scheduled, in progress, and done.</p>
+      </PageHeader>
 
-      <div className="flex flex-wrap gap-2">
-        {['all', ...PROJECT_STATUSES].map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s === 'all' ? '' : s)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-              (statusFilter === '' && s === 'all') || statusFilter === s
-                ? 'bg-teal-600 text-white'
-                : 'bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {s === 'all' ? 'All' : s.replace('_', ' ')}
-          </button>
-        ))}
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div className="flex w-max min-w-full items-center gap-2 pb-1">
+          {['all', ...PROJECT_STATUSES].map((s) => {
+            const active = (statusFilter === '' && s === 'all') || statusFilter === s;
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s === 'all' ? '' : s)}
+                aria-pressed={active}
+                className={`h-11 shrink-0 whitespace-nowrap rounded-full px-4 text-xs font-semibold transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${
+                  active
+                    ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/25'
+                    : 'bg-white text-muted ring-1 ring-inset ring-[#cfd7e3] hover:bg-brand-50 hover:text-brand-700'
+                }`}
+              >
+                {s === 'all' ? 'All' : s.replace('_', ' ')}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
@@ -59,12 +65,37 @@ export default function ProjectsPage() {
       ) : projects.length === 0 ? (
         <EmptyState title="No projects on your board" hint="Win a lead to auto-create a project, or add one manually." action={<Button onClick={() => setShowCreate(true)}>New project</Button>} />
       ) : (
-        <div className="space-y-3">
-          {projects.map((p) => (
-            <ProjectCard key={p.id} project={p} onChanged={load} onError={setError} />
-          ))}
-          <p className="text-center text-xs text-slate-400">{projects.length} project{projects.length === 1 ? '' : 's'}</p>
-        </div>
+        <>
+          <Card className="hidden md:block">
+            <div className="-m-[18px] overflow-x-auto">
+              <table className="w-full min-w-[900px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[#e1e6ee] bg-[#f8fafc] text-xs uppercase tracking-wide text-muted">
+                    <th className="px-[18px] py-3 font-semibold">Project</th>
+                    <th className="px-3 py-3 font-semibold">Client</th>
+                    <th className="px-3 py-3 font-semibold">Priority</th>
+                    <th className="px-3 py-3 font-semibold">Status</th>
+                    <th className="px-3 py-3 font-semibold">Value</th>
+                    <th className="px-3 py-3 font-semibold">Scheduled</th>
+                    <th className="px-[18px] py-3 text-right font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#eef1f6]">
+                  {projects.map((p) => (
+                    <ProjectTableRow key={p.id} project={p} onChanged={load} onError={setError} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <div className="space-y-3 md:hidden">
+            {projects.map((p) => (
+              <ProjectCard key={p.id} project={p} onChanged={load} onError={setError} />
+            ))}
+            <p className="text-center text-xs text-muted">{projects.length} project{projects.length === 1 ? '' : 's'}</p>
+          </div>
+        </>
       )}
 
       {showCreate ? <CreateProjectModal onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); void load(); }} /> : null}
@@ -72,7 +103,7 @@ export default function ProjectsPage() {
   );
 }
 
-function ProjectCard({ project, onChanged, onError }: { project: Project; onChanged: () => Promise<void>; onError: (m: string) => void }) {
+function useProjectActions(project: Project, onChanged: () => Promise<void>, onError: (m: string) => void) {
   const [open, setOpen] = useState(false);
   const [sendBox, setSendBox] = useState(false);
   const [message, setMessage] = useState('');
@@ -143,12 +174,52 @@ function ProjectCard({ project, onChanged, onError }: { project: Project; onChan
     }
   };
 
+  return {
+    open,
+    setOpen,
+    sendBox,
+    setSendBox,
+    message,
+    setMessage,
+    sendState,
+    review,
+    reviewsEnabled,
+    advance,
+    sendUpdate,
+    sendReview,
+    del,
+  };
+}
+
+function ProjectStatusChips({ project, onAdvance }: { project: Project; onAdvance: (patch: Partial<Project>) => void }) {
   return (
-    <Card className="transition hover:shadow-md">
+    <div className="flex flex-wrap gap-1.5">
+      {PROJECT_STATUSES.filter((s) => s !== 'cancelled').map((s) => (
+        <button
+          key={s}
+          type="button"
+          onClick={() => onAdvance({ status: s })}
+          className={`h-9 rounded-full px-2.5 text-[11px] font-semibold transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${
+            project.status === s ? 'bg-brand-600 text-white' : 'bg-slate-100 text-muted hover:bg-slate-200 hover:text-ink'
+          }`}
+        >
+          {s.replace('_', ' ')}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ProjectCard({ project, onChanged, onError }: { project: Project; onChanged: () => Promise<void>; onError: (m: string) => void }) {
+  const { open, setOpen, sendBox, setSendBox, message, setMessage, sendState, review, reviewsEnabled, advance, sendUpdate, sendReview, del } =
+    useProjectActions(project, onChanged, onError);
+
+  return (
+    <Card className="transition duration-150 hover:shadow-md">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-semibold text-slate-900">{project.title}</p>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="font-semibold text-ink">{project.title}</p>
+          <p className="mt-0.5 text-xs text-muted">
             {project.clientName ?? 'Unknown client'}
             {project.scheduledDate ? ` · scheduled ${fmtDate(project.scheduledDate)}` : ''}
           </p>
@@ -160,49 +231,35 @@ function ProjectCard({ project, onChanged, onError }: { project: Project; onChan
         </div>
       </div>
 
-      {project.scope ? <p className="mt-3 line-clamp-2 text-sm text-slate-600">{project.scope}</p> : null}
+      {project.scope ? <p className="mt-3 line-clamp-2 text-sm text-muted">{project.scope}</p> : null}
 
-      <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
-        <span className="font-semibold text-slate-700">{project.estValue > 0 ? fmtMoney(project.estValue) : '—'}</span>
+      <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
+        <span className="font-semibold text-ink">{project.estValue > 0 ? fmtMoney(project.estValue) : '—'}</span>
         <span>Requested: {fmtDate(project.requestedDate)}</span>
         <span>Completed: {fmtDate(project.completionDate)}</span>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5">
-          {PROJECT_STATUSES.filter((s) => s !== 'cancelled').map((s) => (
-            <button
-              key={s}
-              onClick={() => void advance({ status: s })}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-                project.status === s
-                  ? 'bg-teal-600 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {s.replace('_', ' ')}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2">
+        <ProjectStatusChips project={project} onAdvance={advance} />
+        <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={() => setSendBox((v) => !v)}>Email client</Button>
           {reviewsEnabled ? (
-            <Button size="sm" variant="secondary" onClick={sendReview} disabled={review?.busy}>
+            <Button size="sm" variant="secondary" onClick={() => void sendReview()} disabled={review?.busy}>
               {review?.busy ? 'Sending…' : 'Send Review Request'}
             </Button>
           ) : null}
           <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>Edit</Button>
-          <Button size="sm" variant="danger" onClick={del}>Delete</Button>
+          <Button size="sm" variant="danger" onClick={() => void del()}>Delete</Button>
         </div>
       </div>
 
       {sendBox ? (
-        <div className="mt-4 flex items-end gap-2 rounded-xl bg-slate-50 p-3">
+        <div className="mt-4 flex items-end gap-2 rounded-xl bg-[#eef1f6] p-3">
           <Field label="Message to client">
             <Input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="e.g. We'll be there Thursday 8am." onKeyDown={(e) => e.key === 'Enter' && void sendUpdate()} />
           </Field>
-          <Button size="sm" onClick={sendUpdate} disabled={sendState === 'busy' || !message.trim()}>
-            {sendState === 'busy' ? 'Sending…' : sendState === 'done' ? 'Sent ✓' : 'Send'}
+          <Button size="sm" onClick={() => void sendUpdate()} disabled={sendState === 'busy' || !message.trim()}>
+            {sendState === 'busy' ? 'Sending…' : sendState === 'done' ? 'Sent' : 'Send'}
           </Button>
         </div>
       ) : null}
@@ -211,6 +268,60 @@ function ProjectCard({ project, onChanged, onError }: { project: Project; onChan
         <EditProjectModal project={project} onClose={() => setOpen(false)} onChanged={async () => { setOpen(false); await onChanged(); }} onError={onError} />
       ) : null}
     </Card>
+  );
+}
+
+function ProjectTableRow({ project, onChanged, onError }: { project: Project; onChanged: () => Promise<void>; onError: (m: string) => void }) {
+  const { open, setOpen, review, reviewsEnabled, advance, sendReview, del } = useProjectActions(project, onChanged, onError);
+
+  return (
+    <>
+      <tr className="transition duration-150 hover:bg-slate-50">
+        <td className="px-[18px] py-3">
+          <p className="font-medium text-ink">{project.title}</p>
+          <p className="text-xs text-muted">
+            {project.scope ? <span className="line-clamp-1 max-w-[260px]">{project.scope}</span> : fmtDate(project.requestedDate)}
+          </p>
+        </td>
+        <td className="px-3 py-3 text-muted">{project.clientName ?? 'Unknown client'}</td>
+        <td className="px-3 py-3"><PriorityBadge priority={project.priority} /></td>
+        <td className="px-3 py-3"><ProjectStatusBadge status={project.status} />{review?.status ? <div className="mt-1"><ReviewStatusBadge status={review.status} /></div> : null}</td>
+        <td className="px-3 py-3 font-medium text-ink">{project.estValue > 0 ? fmtMoney(project.estValue) : '—'}</td>
+        <td className="px-3 py-3 text-xs text-muted">{fmtDate(project.scheduledDate)}</td>
+        <td className="px-[18px] py-3">
+          <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+            {project.status !== 'cancelled' ? (
+              <div className="flex items-center gap-1 rounded-lg bg-slate-50 p-0.5">
+                {PROJECT_STATUSES.filter((s) => s !== 'cancelled').map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    title={`Set ${s.replace('_', ' ')}`}
+                    onClick={() => void advance({ status: s })}
+                    aria-label={`Set status ${s.replace('_', ' ')}`}
+                    className={`h-7 rounded-md px-2 text-[11px] font-semibold transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600 ${
+                      project.status === s ? 'bg-brand-600 text-white' : 'text-muted hover:bg-white hover:text-ink'
+                    }`}
+                  >
+                    {s === 'in_progress' ? 'In progress' : s === 'on_hold' ? 'On hold' : s.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {reviewsEnabled ? (
+              <Button size="sm" variant="secondary" onClick={() => void sendReview()} disabled={review?.busy}>
+                {review?.busy ? 'Sending…' : 'Review'}
+              </Button>
+            ) : null}
+            <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>Edit</Button>
+            <Button size="sm" variant="danger" onClick={() => void del()}>Delete</Button>
+          </div>
+        </td>
+      </tr>
+      {open ? (
+        <EditProjectModal project={project} onClose={() => setOpen(false)} onChanged={async () => { setOpen(false); await onChanged(); }} onError={onError} />
+      ) : null}
+    </>
   );
 }
 

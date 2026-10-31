@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import { ApiError } from '../lib/api.js';
 import type { Client } from '../types/api.js';
-import { Alert, Button, Card, EmptyState, Field, Input, Select, Spinner, Textarea } from '../components/ui.js';
+import { Alert, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, Textarea } from '../components/ui.js';
 import { Modal } from '../components/Modal.js';
 import { timeAgo } from '../components/badges.js';
 
@@ -26,13 +26,20 @@ export default function ClientsPage() {
   }, [load]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Clients</h1>
-          <p className="mt-1 text-sm text-slate-500">Your book of business.</p>
-        </div>
-        <Button onClick={() => setShowCreate(true)}>+ Add client</Button>
+    <div className="space-y-5">
+      <PageHeader
+        section="Clients"
+        subpage={query ? `Results for "${query}"` : undefined}
+        actions={<Button onClick={() => setShowCreate(true)}>+ Add client</Button>}
+      >
+        <p className="mt-0.5 text-[13px] text-muted">Your book of business.</p>
+      </PageHeader>
+
+      <div className="relative max-w-sm">
+        <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" />
+        </svg>
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search clients…" className="pl-9" aria-label="Search clients" />
       </div>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
@@ -40,13 +47,37 @@ export default function ClientsPage() {
       {clients === null ? (
         <Spinner label="Loading clients…" />
       ) : clients.length === 0 ? (
-        <EmptyState title="No clients yet" hint="Clients are usually created automatically when a lead is won." action={<Button onClick={() => setShowCreate(true)}>Add a client</Button>} />
+        <EmptyState title={query ? 'No clients match your search' : 'No clients yet'} hint="Clients are usually created automatically when a lead is won." action={<Button onClick={() => setShowCreate(true)}>Add a client</Button>} />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {clients.map((client) => (
-            <ClientCard key={client.id} client={client} onChanged={load} onError={setError} />
-          ))}
-        </div>
+        <>
+          <Card className="hidden md:block">
+            <div className="-m-[18px] overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[#e1e6ee] bg-[#f8fafc] text-xs uppercase tracking-wide text-muted">
+                    <th className="px-[18px] py-3 font-semibold">Client</th>
+                    <th className="px-3 py-3 font-semibold">Phone</th>
+                    <th className="px-3 py-3 font-semibold">Type</th>
+                    <th className="px-3 py-3 font-semibold">Address</th>
+                    <th className="px-3 py-3 font-semibold">Added</th>
+                    <th className="px-[18px] py-3 text-right font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#eef1f6]">
+                  {clients.map((client) => (
+                    <ClientTableRow key={client.id} client={client} onChanged={load} onError={setError} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <div className="grid gap-4 sm:grid-cols-2 md:hidden">
+            {clients.map((client) => (
+              <ClientCard key={client.id} client={client} onChanged={load} onError={setError} />
+            ))}
+          </div>
+        </>
       )}
 
       {showCreate ? <CreateClientModal onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); void load(); }} /> : null}
@@ -54,7 +85,7 @@ export default function ClientsPage() {
   );
 }
 
-function ClientCard({ client, onChanged, onError }: { client: Client; onChanged: () => Promise<void>; onError: (m: string) => void }) {
+function useClientActions(client: Client, onChanged: () => Promise<void>, onError: (m: string) => void) {
   const [open, setOpen] = useState(false);
 
   const del = async () => {
@@ -67,37 +98,73 @@ function ClientCard({ client, onChanged, onError }: { client: Client; onChanged:
     }
   };
 
+  return { open, setOpen, del };
+}
+
+function ClientCard({ client, onChanged, onError }: { client: Client; onChanged: () => Promise<void>; onError: (m: string) => void }) {
+  const { open, setOpen, del } = useClientActions(client, onChanged, onError);
+
   return (
     <>
-      <Card className="transition hover:shadow-md">
+      <Card className="transition duration-150 hover:shadow-md">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate font-semibold text-slate-900">{client.firstName} {client.lastName}</p>
-            <p className="truncate text-xs text-slate-500">{client.email}</p>
+            <p className="truncate font-semibold text-ink">{client.firstName} {client.lastName}</p>
+            <p className="truncate text-xs text-muted">{client.email}</p>
           </div>
-          <span className="shrink-0 text-xs text-slate-400">{timeAgo(client.createdAt)}</span>
+          <span className="shrink-0 text-xs text-muted">{timeAgo(client.createdAt)}</span>
         </div>
         <dl className="mt-4 grid grid-cols-2 gap-2 text-xs">
           <div>
-            <dt className="text-slate-400">Phone</dt>
-            <dd className="font-medium text-slate-700">{client.phone || '—'}</dd>
+            <dt className="text-muted">Phone</dt>
+            <dd className="font-medium text-ink">{client.phone || '—'}</dd>
           </div>
           <div>
-            <dt className="text-slate-400">Type</dt>
-            <dd className="font-medium capitalize text-slate-700">{client.propertyType || '—'}</dd>
+            <dt className="text-muted">Type</dt>
+            <dd className="font-medium capitalize text-ink">{client.propertyType || '—'}</dd>
           </div>
           <div className="col-span-2">
-            <dt className="text-slate-400">Address</dt>
-            <dd className="font-medium text-slate-700">
+            <dt className="text-muted">Address</dt>
+            <dd className="font-medium text-ink">
               {[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ') || '—'}
             </dd>
           </div>
         </dl>
         <div className="mt-4 flex justify-end gap-2">
-          <Button size="sm" variant="danger" onClick={del}>Delete</Button>
+          <Button size="sm" variant="danger" onClick={() => void del()}>Delete</Button>
           <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>Edit</Button>
         </div>
       </Card>
+      {open ? (
+        <EditClientModal client={client} onClose={() => setOpen(false)} onChanged={async () => { setOpen(false); await onChanged(); }} onError={onError} />
+      ) : null}
+    </>
+  );
+}
+
+function ClientTableRow({ client, onChanged, onError }: { client: Client; onChanged: () => Promise<void>; onError: (m: string) => void }) {
+  const { open, setOpen, del } = useClientActions(client, onChanged, onError);
+
+  return (
+    <>
+      <tr className="transition duration-150 hover:bg-slate-50">
+        <td className="px-[18px] py-3">
+          <p className="font-medium text-ink">{client.firstName} {client.lastName}</p>
+          <p className="text-xs text-muted">{client.email}</p>
+        </td>
+        <td className="px-3 py-3 text-muted">{client.phone || '—'}</td>
+        <td className="px-3 py-3"><span className="text-sm capitalize text-muted">{client.propertyType || '—'}</span></td>
+        <td className="max-w-[260px] truncate px-3 py-3 text-xs text-muted">
+          {[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ') || '—'}
+        </td>
+        <td className="px-3 py-3 text-xs text-muted">{timeAgo(client.createdAt)}</td>
+        <td className="px-[18px] py-3">
+          <div className="flex justify-end gap-1.5">
+            <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>Edit</Button>
+            <Button size="sm" variant="danger" onClick={() => void del()}>Delete</Button>
+          </div>
+        </td>
+      </tr>
       {open ? (
         <EditClientModal client={client} onClose={() => setOpen(false)} onChanged={async () => { setOpen(false); await onChanged(); }} onError={onError} />
       ) : null}
