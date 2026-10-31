@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as api from '../lib/api.js';
 import type { ReviewFlowLead, ReviewFlowLeadStatus, ReviewFlowOverview, ReviewFlowReviewRequest, ReviewFlowSettings } from '../types/api.js';
-import { Alert, Button, Card, Field, Input, Spinner, Textarea } from '../components/ui.js';
+import { Alert, Button, Card, Field, Input, PageHeader, Select, Spinner, Textarea } from '../components/ui.js';
 import { Modal } from '../components/Modal.js';
 
 // ---- ReviewFlow admin page (combined dashboard, single CRM login) ----
@@ -38,11 +38,11 @@ const STATUS_TONES: Record<ReviewFlowLeadStatus, string> = {
 
 function statusBadge(status: ReviewFlowLeadStatus) {
   const tones: Record<string, string> = {
-    slate: 'bg-slate-100 text-slate-700',
-    cyan: 'bg-sky-50 text-sky-700',
-    emerald: 'bg-emerald-50 text-emerald-700',
-    amber: 'bg-amber-50 text-amber-700',
-    rose: 'bg-rose-50 text-rose-700',
+    slate: 'bg-[#e2e8f0] text-[#334155]',
+    cyan: 'bg-[#cffafe] text-[#155e75]',
+    emerald: 'bg-[#dcfce7] text-[#166534]',
+    amber: 'bg-[#fef3c7] text-[#92400e]',
+    rose: 'bg-[#ffe4e6] text-[#9f1239]',
   };
   return tones[STATUS_TONES[status]] ?? tones.slate;
 }
@@ -77,14 +77,11 @@ function formatDelay(hours: number): string {
 
 function ReviewPageHeader({ settings }: { settings: ReviewFlowSettings | null }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">ReviewFlow</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Review requests &amp; pipeline{settings?.business_name ? ` for ${settings.business_name}` : ''}. Powered by ReviewFlow by Conextsol.
-        </p>
-      </div>
-    </div>
+    <PageHeader section="Reviews" subpage="ReviewFlow">
+      <p className="mt-0.5 text-[13px] text-muted">
+        Review requests &amp; pipeline{settings?.business_name ? <> for <span className="font-medium text-ink">{settings.business_name}</span></> : ''}. Powered by ReviewFlow by Conextsol.
+      </p>
+    </PageHeader>
   );
 }
 
@@ -105,20 +102,20 @@ function OverviewTab({
     awaiting: leads.filter((l) => l.status === 'complete').length,
   };
   const cards = [
-    { key: 'total', label: 'Total Leads', value: values.total, color: 'text-slate-600' },
-    { key: 'active', label: 'Active Jobs', value: values.active, color: 'text-sky-600' },
-    { key: 'sent', label: 'Reviews Sent', value: values.sent, color: 'text-amber-600' },
-    { key: 'awaiting', label: 'Awaiting Review', value: values.awaiting, color: 'text-emerald-600' },
+    { key: 'total', label: 'Total Leads', value: values.total, color: 'text-[#334155]' },
+    { key: 'active', label: 'Active Jobs', value: values.active, color: 'text-brand-600' },
+    { key: 'sent', label: 'Reviews Sent', value: values.sent, color: 'text-[#b45309]' },
+    { key: 'awaiting', label: 'Awaiting Review', value: values.awaiting, color: 'text-[#166534]' },
   ] as const;
 
   const recent = [...leads].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map((c) => (
-          <div key={c.key} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{c.label}</p>
+          <div key={c.key} className="rounded-xl border border-line bg-white p-4 shadow-sm">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted">{c.label}</p>
             <p className={`mt-2 text-2xl font-bold ${c.color}`}>{c.value}</p>
           </div>
         ))}
@@ -126,25 +123,25 @@ function OverviewTab({
 
       <Card title="Recent Leads" subtitle="Latest 5 enquiries across your review pipeline">
         {recent.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-500">
+          <p className="py-8 text-center text-sm text-muted">
             No leads in ReviewFlow yet. Mark a project complete in the CRM to auto-create one.
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-[#eef1f6]">
             {recent.map((lead) => (
               <li key={lead.id}>
                 <button
                   onClick={() => onOpenLead(lead)}
-                  className="flex w-full items-center gap-3 py-3 text-left hover:bg-slate-50"
+                  className="flex w-full items-center gap-3 py-3 text-left transition duration-150 hover:bg-slate-50 rounded-lg"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-900">
+                    <p className="truncate text-sm font-medium text-ink">
                       {lead.first_name} {lead.last_name}
-                      {lead.service && <span className="font-normal text-slate-500"> · {lead.service}</span>}
+                      {lead.service && <span className="font-normal text-muted"> · {lead.service}</span>}
                     </p>
-                    <p className="text-xs text-slate-400">{timeAgo(lead.created_at)}</p>
+                    <p className="text-xs text-muted">{timeAgo(lead.created_at)}</p>
                   </div>
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusBadge(lead.status)}`}>
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${statusBadge(lead.status)}`}>
                     {STATUS_LABELS[lead.status]}
                   </span>
                 </button>
@@ -237,17 +234,17 @@ function LeadsTab({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative max-w-sm flex-1">
-          <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" />
           </svg>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, email or service…"
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder-slate-400 shadow-sm outline-none transition focus:border-teal-500"
+            className="h-11 w-full rounded-lg border border-[#cfd7e3] bg-white pl-9 pr-3 text-sm text-ink placeholder-[#8b98aa] shadow-sm outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-600/25"
           />
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           {pendingLeads.length > 0 && (
             <Button variant="secondary" onClick={() => void sendAllPending()} disabled={sendingAll}>
               {sendingAll ? 'Sending…' : `Send ${pendingLeads.length} Pending Review${pendingLeads.length === 1 ? '' : 's'}`}
@@ -257,76 +254,72 @@ function LeadsTab({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 lg:flex-row">
-        {REVIEW_STATUSES.map((status) => {
-          const items = groups[status];
-          const barColor: Record<ReviewFlowLeadStatus, string> = {
-            new: 'bg-slate-400',
-            in_progress: 'bg-sky-500',
-            complete: 'bg-emerald-500',
-            review_sent: 'bg-amber-500',
-            cancelled: 'bg-rose-400',
-          };
-          const headColor: Record<ReviewFlowLeadStatus, string> = {
-            new: 'text-slate-500',
-            in_progress: 'text-sky-600',
-            complete: 'text-emerald-600',
-            review_sent: 'text-amber-600',
-            cancelled: 'text-rose-500',
-          };
-          return (
-            <div
-              key={status}
-              className={`flex flex-col rounded-xl border bg-white shadow-sm transition-colors ${dragOver === status ? 'border-teal-400 ring-2 ring-teal-500/20' : 'border-slate-200'}`}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(status); }}
-              onDragLeave={() => setDragOver((d) => (d === status ? null : d))}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOver(null);
-                const id = e.dataTransfer.getData('text/lead-id');
-                if (!id || busy) return;
-                void move(id, status);
-              }}
-            >
-              <div className="flex items-center gap-2 border-b border-slate-100 px-3.5 py-3">
-                <span className={`h-2 w-2 rounded-full ${barColor[status]}`} />
-                <h3 className={`text-xs font-semibold uppercase tracking-wide ${headColor[status]}`}>{STATUS_LABELS[status]}</h3>
-                <span className="ml-auto text-[11px] text-slate-400">{items.length}</span>
-              </div>
-              <div className="flex-1 space-y-2 p-2.5">
-                {items.length === 0 ? (
-                  <p className="py-6 text-center text-xs text-slate-400">{search ? 'No matches' : `No ${STATUS_LABELS[status].toLowerCase()} leads`}</p>
-                ) : (
-                  items.map((lead) => (
-                    <button
-                      key={lead.id}
-                      draggable
-                      onDragStart={(e) => e.dataTransfer.setData('text/lead-id', lead.id)}
-                      onClick={() => onOpenLead(lead)}
-                      className="w-full rounded-lg border border-slate-200 border-l-2 border-l-slate-400 bg-white p-3 text-left shadow-sm transition hover:border-slate-300"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-900">
-                            {lead.first_name} {lead.last_name}
-                          </p>
-                          {lead.service && <p className="truncate text-[11px] text-slate-400">{lead.service}</p>}
+      <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 lg:mx-0 lg:overflow-x-visible lg:px-0">
+        <div className="flex snap-x snap-mandatory gap-3 lg:contents">
+          {REVIEW_STATUSES.map((status) => {
+            const items = groups[status];
+            const headClass: Record<ReviewFlowLeadStatus, string> = {
+              new: 'bg-[#16a34a]',
+              in_progress: 'bg-brand-600',
+              complete: 'bg-[#7c3aed]',
+              review_sent: 'bg-[#ea580c]',
+              cancelled: 'bg-slate-500',
+            };
+            return (
+              <div
+                key={status}
+                className={`flex min-w-[260px] flex-shrink-0 snap-start flex-col overflow-hidden rounded-xl border shadow-sm transition-colors lg:min-w-0 lg:flex-1 ${
+                  dragOver === status ? 'border-brand-600 ring-2 ring-brand-600/30' : 'border-line'
+                } ${dragOver === status ? 'bg-[#e7ebf2]/60' : 'bg-[#e7ebf2]'}`}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(status); }}
+                onDragLeave={() => setDragOver((d) => (d === status ? null : d))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(null);
+                  const id = e.dataTransfer.getData('text/lead-id');
+                  if (!id || busy) return;
+                  void move(id, status);
+                }}
+              >
+                <div className={`flex items-center gap-2 px-4 py-3 text-white ${headClass[status]}`}>
+                  <h3 className="text-[13px] font-semibold">{STATUS_LABELS[status]}</h3>
+                  <span className="ml-auto rounded-full bg-white/25 px-2 py-0.5 text-xs font-semibold text-white">{items.length}</span>
+                </div>
+                <div className="flex-1 space-y-2 p-2.5">
+                  {items.length === 0 ? (
+                    <p className="py-6 text-center text-xs text-muted">{search ? 'No matches' : `No ${STATUS_LABELS[status].toLowerCase()} leads`}</p>
+                  ) : (
+                    items.map((lead) => (
+                      <button
+                        key={lead.id}
+                        draggable
+                        onDragStart={(e) => e.dataTransfer.setData('text/lead-id', lead.id)}
+                        onClick={() => onOpenLead(lead)}
+                        className="w-full rounded-lg border border-line bg-white p-3 text-left shadow-sm transition duration-150 hover:shadow hover:ring-1 hover:ring-brand-600/30"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-ink">
+                              {lead.first_name} {lead.last_name}
+                            </p>
+                            {lead.service && <p className="truncate text-[11px] text-muted">{lead.service}</p>}
+                          </div>
+                          <span className="shrink-0 rounded-full bg-[#e2e8f0] px-1.5 py-0.5 text-[10px] font-medium text-[#334155]">
+                            {lead.source}
+                          </span>
                         </div>
-                        <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
-                          {lead.source}
-                        </span>
-                      </div>
-                      <p className="mt-2 truncate text-xs text-slate-500">{lead.email}</p>
-                    </button>
-                  ))
-                )}
+                        <p className="mt-2 truncate text-xs text-muted">{lead.email}</p>
+                      </button>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      <p className="text-center text-xs text-slate-400">Drag cards between columns to change status. Click a card for details.</p>
+      <p className="text-center text-xs text-muted">Drag cards between columns to change status. Click a card for details.</p>
     </div>
   );
 }
@@ -362,57 +355,57 @@ function HistoryTab({
       bounced: { label: 'Bounced', cls: 'bg-rose-50 text-rose-700' },
       failed: { label: 'Failed', cls: 'bg-rose-50 text-rose-700' },
     };
-    const b = map[status] ?? { label: status, cls: 'bg-slate-100 text-slate-600' };
+    const b = map[status] ?? { label: status, cls: 'bg-[#e2e8f0] text-[#334155]' };
     return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${b.cls}`}>{b.label}</span>;
   };
 
   return (
     <div className="space-y-4">
       <div className="relative max-w-sm">
-        <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" />
         </svg>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search review requests…"
-          className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder-slate-400 shadow-sm outline-none transition focus:border-teal-500"
+          className="h-11 w-full rounded-lg border border-[#cfd7e3] bg-white pl-9 pr-3 text-sm text-ink placeholder-[#8b98aa] shadow-sm outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-600/25"
         />
       </div>
 
       <Card className="p-0">
         {filtered.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-sm text-slate-500">No review requests sent yet</p>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="text-sm text-muted">No review requests sent yet</p>
+            <p className="mt-1 text-xs text-muted">
               {search ? 'Try a different search term.' : 'Review emails will appear here once sent.'}
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead>
-                <tr className="border-b border-slate-100 text-left">
-                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Recipient</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Sent</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Triggered</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Status</th>
-                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-400">Action</th>
+                <tr className="border-b border-[#e1e6ee] bg-[#f8fafc] text-left">
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-muted">Recipient</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-muted">Sent</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-muted">Triggered</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-muted">Status</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-muted">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[#eef1f6]">
                 {filtered.map((r) => {
                   const lead = leadById.get(r.lead_id);
                   const canResend = r.status === 'bounced' || r.status === 'failed';
                   return (
-                    <tr key={r.id} className="hover:bg-slate-50">
+                    <tr key={r.id} className="transition duration-150 hover:bg-slate-50">
                       <td className="px-4 py-3">
-                        <p className="font-medium text-slate-900">{r.recipient_name || <span className="text-slate-400">Unknown</span>}</p>
-                        <p className="text-xs text-slate-400">{r.recipient_email}</p>
+                        <p className="font-medium text-ink">{r.recipient_name || <span className="text-muted">Unknown</span>}</p>
+                        <p className="text-xs text-muted">{r.recipient_email}</p>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-500">{fmtLocal(r.sent_at)}</td>
+                      <td className="px-4 py-3 text-xs text-muted">{fmtLocal(r.sent_at)}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${r.triggered_by === 'auto' ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${r.triggered_by === 'auto' ? 'bg-[#dbeafe] text-[#1e40af]' : 'bg-[#e2e8f0] text-[#334155]'}`}>
                           {r.triggered_by === 'auto' ? 'Auto' : 'Manual'}
                         </span>
                       </td>
@@ -422,7 +415,7 @@ function HistoryTab({
                           <button
                             onClick={() => lead && onResend(lead.id)}
                             disabled={sending || !lead}
-                            className="text-xs font-medium text-amber-600 hover:text-amber-500 disabled:opacity-50"
+                            className="rounded-lg px-3 py-2 text-xs font-semibold text-[#b45309] transition duration-150 hover:bg-[#fef3c7] disabled:opacity-50"
                           >
                             Resend
                           </button>
@@ -514,7 +507,7 @@ function EmailBuilderTab({ settings, onSettingsUpdated, onToast }: {
                 type="color"
                 value={brandColor}
                 onChange={(e) => { setBrandColor(e.target.value); setHexColor(e.target.value); }}
-                className="h-10 w-12 cursor-pointer rounded-lg border border-slate-200 bg-transparent"
+                className="h-11 w-12 cursor-pointer rounded-lg border border-[#cfd7e3] bg-transparent"
               />
               <Input
                 value={hexColor}
@@ -527,10 +520,10 @@ function EmailBuilderTab({ settings, onSettingsUpdated, onToast }: {
           <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save template'}</Button>
         </div>
       </Card>
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <p className="text-sm font-semibold text-slate-900">Live preview</p>
-          <p className="mt-0.5 truncate text-xs text-slate-500">{resolve(subject)}</p>
+      <div className="overflow-hidden rounded-xl border border-line bg-white shadow-sm">
+        <div className="border-b border-[#eef1f6] px-5 py-4">
+          <p className="text-sm font-semibold text-ink">Live preview</p>
+          <p className="mt-0.5 truncate text-xs text-muted">{resolve(subject)}</p>
         </div>
         <div className="p-4">
           <div className="overflow-hidden rounded-xl">
@@ -722,45 +715,45 @@ async function handleReviewFlowSubmit(e) {
               <Input type="email" defaultValue={settings.review_reply_to_email} onBlur={(e) => e.target.value !== settings.review_reply_to_email && void saveField('review_reply_to_email', e.target.value)} placeholder="hello@yourbusiness.co.za" />
             </Field>
           </div>
-          {!settings.review_from_email && <p className="mt-3 text-xs text-amber-600">⚠ From address must be verified in Resend before emails can send.</p>}
+          {!settings.review_from_email && <p className="mt-3 text-xs text-[#b45309]">From address must be verified in Resend before emails can send.</p>}
         </Card>
 
         <Card title="Automation">
           <div className="space-y-5">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-slate-900">Auto-send review request</p>
-                <p className="text-xs text-slate-500">Send automatically when a job is marked complete</p>
+                <p className="text-sm font-medium text-ink">Auto-send review request</p>
+                <p className="text-xs text-muted">Send automatically when a job is marked complete</p>
               </div>
               <button
                 role="switch"
                 aria-checked={settings.auto_send_enabled}
                 onClick={() => void saveField('auto_send_enabled', !settings.auto_send_enabled)}
-                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${settings.auto_send_enabled ? 'bg-teal-600' : 'bg-slate-200'}`}
+                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${settings.auto_send_enabled ? 'bg-brand-600' : 'bg-slate-200'}`}
               >
-                <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${settings.auto_send_enabled ? 'translate-x-5' : ''}`} />
+                <span className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform duration-150 ${settings.auto_send_enabled ? 'translate-x-5' : ''}`} />
               </button>
             </div>
             <div>
-              <p className="mb-1 text-sm font-medium text-slate-700">Send after — {formatDelay(delayDraft)}</p>
+              <p className="mb-1 text-sm font-medium text-ink">Send after — {formatDelay(delayDraft)}</p>
               <input
                 type="range"
                 min={1}
                 max={168}
                 value={delayDraft}
                 onChange={(e) => setDelayDraft(Number(e.target.value))}
-                className="w-full accent-teal-600"
+                className="w-full accent-brand-600"
               />
               {delayDraft !== settings.auto_send_delay_hours && (
                 <button
                   onClick={() => void saveField('auto_send_delay_hours', delayDraft)}
                   disabled={busy === 'auto_send_delay_hours'}
-                  className="mt-2 rounded-md border border-teal-600 px-3 py-1.5 text-xs font-medium text-teal-700 transition hover:bg-teal-50"
+                  className="mt-2 h-9 rounded-lg border border-brand-600 px-3 text-xs font-semibold text-brand-700 transition duration-150 hover:bg-brand-50 disabled:opacity-50"
                 >
                   Save delay ({formatDelay(delayDraft)})
                 </button>
               )}
-              <p className="mt-2 text-xs text-slate-400">The review request will send automatically after this delay. You can still send manually at any time.</p>
+              <p className="mt-2 text-xs text-muted">The review request will send automatically after this delay. You can still send manually at any time.</p>
             </div>
           </div>
         </Card>
@@ -773,33 +766,36 @@ async function handleReviewFlowSubmit(e) {
               <button
                 key={w.url}
                 onClick={() => setWidgetTab(w.url)}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${widgetTab === w.url ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                aria-pressed={widgetTab === w.url}
+                className={`h-9 rounded-lg border px-3 text-xs font-semibold transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${
+                  widgetTab === w.url ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-[#cfd7e3] text-muted hover:border-slate-300 hover:text-ink'
+                }`}
               >
                 {w.title}
               </button>
             ))}
           </div>
-          <pre className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-700">{widgets.find((w) => w.url === widgetTab)?.code}</pre>
+          <pre className="max-h-72 overflow-x-auto overflow-y-auto rounded-lg border border-line bg-[#0b1322] p-3 text-[11px] leading-relaxed text-slate-200">{widgets.find((w) => w.url === widgetTab)?.code}</pre>
 
-          <div className="mt-4 border-t border-slate-100 pt-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-slate-900">Widget API key</p>
-                <p className="mt-0.5 text-xs text-slate-500">Authenticates widget submissions. Rotating it immediately invalidates the old key.</p>
+          <div className="mt-4 border-t border-[#eef1f6] pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink">Widget API key</p>
+                <p className="mt-0.5 text-xs text-muted">Authenticates widget submissions. Rotating it immediately invalidates the old key.</p>
               </div>
               <button
                 onClick={() => void handleRegenerate()}
                 disabled={regenerating}
-                className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e11d48] ${
                   confirmRegen
-                    ? 'border-rose-600 bg-rose-600 text-white hover:bg-rose-500'
-                    : 'border-rose-200 text-rose-600 hover:bg-rose-50'
+                    ? 'border-[#e11d48] bg-[#e11d48] text-white hover:bg-[#be123c]'
+                    : 'border-[#fecdd3] text-[#be123c] hover:bg-[#fff1f2]'
                 }`}
               >
                 {confirmRegen ? 'Confirm — old key stops working' : regenerating ? 'Regenerating…' : 'Regenerate API key'}
               </button>
             </div>
-            <p className="mt-3 break-all text-[11px] font-mono text-slate-500">{settings.widget_api_key || '—'}</p>
+            <p className="mt-3 break-all text-[11px] font-mono text-muted">{settings.widget_api_key || '—'}</p>
           </div>
         </Card>
       </div>
@@ -894,11 +890,11 @@ function LeadModal({ lead, onClose, onSaved, onSendReview }: {
         </Field>
 
         <Field label="Status">
-          <select value={form.status} onChange={set('status')} className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-teal-500">
+          <Select value={form.status} onChange={set('status')}>
             {REVIEW_STATUSES.map((s) => (
               <option key={s} value={s}>{STATUS_LABELS[s]}</option>
             ))}
-          </select>
+          </Select>
         </Field>
 
         {error && <Alert tone="error">{error}</Alert>}
@@ -1015,8 +1011,9 @@ export default function ReviewsPage() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-              tab === t.id ? 'bg-teal-600 text-white' : 'bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50'
+            aria-pressed={tab === t.id}
+            className={`h-11 rounded-full px-4 text-xs font-semibold transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${
+              tab === t.id ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/25' : 'bg-white text-muted ring-1 ring-inset ring-[#cfd7e3] hover:bg-brand-50 hover:text-brand-700'
             }`}
           >
             {t.label}

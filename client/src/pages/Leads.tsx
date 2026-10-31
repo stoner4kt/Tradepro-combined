@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as api from '../lib/api.js';
 import { ApiError } from '../lib/api.js';
 import type { Lead, LeadStatus } from '../types/api.js';
-import { Alert, Button, Card, EmptyState, Field, Input, Select, Spinner, Textarea } from '../components/ui.js';
+import { Alert, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, Textarea } from '../components/ui.js';
 import { Modal } from '../components/Modal.js';
 import { LEAD_STATUSES, LeadStatusBadge, fmtMoney, timeAgo } from '../components/badges.js';
 
@@ -44,29 +44,35 @@ export default function LeadsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Leads</h1>
-          <p className="mt-1 text-sm text-slate-500">Capture, qualify and close your pipeline.</p>
-        </div>
-        <Button onClick={() => setShowCreate(true)}>+ Add lead</Button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        section="Leads"
+        subpage={statusFilter ? `Filtered by ${statusFilter.replace('_', ' ')}` : 'All leads'}
+        actions={<Button onClick={() => setShowCreate(true)}>+ Add lead</Button>}
+      >
+        <p className="mt-0.5 text-[13px] text-muted">Capture, qualify and close your pipeline.</p>
+      </PageHeader>
 
-      <div className="flex flex-wrap gap-2">
-        {['all', ...LEAD_STATUSES].map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s === 'all' ? '' : s)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-              (statusFilter === '' && s === 'all') || statusFilter === s
-                ? 'bg-teal-600 text-white'
-                : 'bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {s === 'all' ? 'All' : s.replace('_', ' ')} ({counts[s] ?? 0})
-          </button>
-        ))}
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div className="flex w-max min-w-full items-center gap-2 pb-1">
+          {['all', ...LEAD_STATUSES].map((s) => {
+            const active = (statusFilter === '' && s === 'all') || statusFilter === s;
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s === 'all' ? '' : s)}
+                aria-pressed={active}
+                className={`h-11 shrink-0 whitespace-nowrap rounded-full px-4 text-xs font-semibold transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${
+                  active
+                    ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/25'
+                    : 'bg-white text-muted ring-1 ring-inset ring-[#cfd7e3] hover:bg-brand-50 hover:text-brand-700'
+                }`}
+              >
+                {s === 'all' ? 'All' : s.replace('_', ' ')} <span className={active ? 'opacity-80' : 'opacity-60'}>({counts[s] ?? 0})</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {notice ? <Alert tone="success">{notice}</Alert> : null}
@@ -81,28 +87,36 @@ export default function LeadsPage() {
           action={<Button onClick={() => setShowCreate(true)}>Add your first lead</Button>}
         />
       ) : (
-        <Card>
-          <div className="-m-5 overflow-x-auto">
-            <table className="w-full min-w-[880px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
-                  <th className="px-5 py-3 font-semibold">Lead</th>
-                  <th className="px-3 py-3 font-semibold">Service</th>
-                  <th className="px-3 py-3 font-semibold">Source</th>
-                  <th className="px-3 py-3 font-semibold">Status</th>
-                  <th className="px-3 py-3 font-semibold">Value</th>
-                  <th className="px-3 py-3 font-semibold">Captured</th>
-                  <th className="px-5 py-3 text-right font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {leads.map((lead) => (
-                  <LeadRow key={lead.id} lead={lead} onChanged={load} onError={setError} onWelcome={() => sendWelcome(lead.id)} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+        <>
+          <Card className="hidden md:block">
+            <div className="-m-[18px] overflow-x-auto">
+              <table className="w-full min-w-[880px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[#e1e6ee] bg-[#f8fafc] text-xs uppercase tracking-wide text-muted">
+                    <th className="px-[18px] py-3 font-semibold">Lead</th>
+                    <th className="px-3 py-3 font-semibold">Service</th>
+                    <th className="px-3 py-3 font-semibold">Source</th>
+                    <th className="px-3 py-3 font-semibold">Status</th>
+                    <th className="px-3 py-3 font-semibold">Value</th>
+                    <th className="px-3 py-3 font-semibold">Captured</th>
+                    <th className="px-[18px] py-3 text-right font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#eef1f6]">
+                  {leads.map((lead) => (
+                    <LeadRow key={lead.id} lead={lead} onChanged={load} onError={setError} onWelcome={() => sendWelcome(lead.id)} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <ul className="space-y-3 md:hidden">
+            {leads.map((lead) => (
+              <LeadMobileCard key={lead.id} lead={lead} onChanged={load} onError={setError} onWelcome={() => sendWelcome(lead.id)} />
+            ))}
+          </ul>
+        </>
       )}
 
       {showCreate ? <CreateLeadModal onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); void load(); }} /> : null}
@@ -120,23 +134,23 @@ function LeadRow({ lead, onChanged, onError, onWelcome }: {
   return (
     <>
       <tr
-        className="cursor-pointer transition hover:bg-slate-50"
+        className="cursor-pointer transition duration-150 hover:bg-slate-50"
         onClick={(e) => {
           if ((e.target as HTMLElement).closest('button,select,td:last-child')) return;
           setOpen(true);
         }}
       >
-        <td className="px-5 py-3">
-          <p className="font-semibold text-slate-900">{lead.firstName} {lead.lastName}</p>
-          <p className="text-xs text-slate-400">{lead.email}</p>
+        <td className="px-[18px] py-3">
+          <p className="font-semibold text-ink">{lead.firstName} {lead.lastName}</p>
+          <p className="text-xs text-muted">{lead.email}</p>
         </td>
-        <td className="px-3 py-3 text-slate-600">{lead.service || '—'}</td>
-        <td className="px-3 py-3"><span className="text-xs capitalize text-slate-500">{lead.source}</span></td>
+        <td className="px-3 py-3 text-muted">{lead.service || '—'}</td>
+        <td className="px-3 py-3"><span className="text-xs capitalize text-muted">{lead.source}</span></td>
         <td className="px-3 py-3"><LeadStatusBadge status={lead.status} /></td>
-        <td className="px-3 py-3 font-medium text-slate-700">{lead.estimatedValue > 0 ? fmtMoney(lead.estimatedValue) : '—'}</td>
-        <td className="px-3 py-3 text-xs text-slate-400">{timeAgo(lead.capturedAt)}</td>
-        <td className="px-5 py-3">
-          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+        <td className="px-3 py-3 font-medium text-ink">{lead.estimatedValue > 0 ? fmtMoney(lead.estimatedValue) : '—'}</td>
+        <td className="px-3 py-3 text-xs text-muted">{timeAgo(lead.capturedAt)}</td>
+        <td className="px-[18px] py-3">
+          <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
             <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>Edit</Button>
             {lead.status !== 'won' && lead.status !== 'lost' ? (
               <Button size="sm" variant="secondary" onClick={onWelcome}>Email</Button>
@@ -144,6 +158,49 @@ function LeadRow({ lead, onChanged, onError, onWelcome }: {
           </div>
         </td>
       </tr>
+      {open ? (
+        <EditLeadModal
+          lead={lead}
+          onClose={() => setOpen(false)}
+          onChanged={async () => { setOpen(false); await onChanged(); }}
+          onError={onError}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function LeadMobileCard({ lead, onChanged, onError, onWelcome }: {
+  lead: Lead;
+  onChanged: () => Promise<void>;
+  onError: (m: string) => void;
+  onWelcome: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <li className="rounded-xl border border-line bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-ink">{lead.firstName} {lead.lastName}</p>
+            <p className="truncate text-xs text-muted">{lead.email}</p>
+          </div>
+          <LeadStatusBadge status={lead.status} />
+        </div>
+        <p className="mt-2 truncate text-xs text-muted">
+          {lead.service || 'Any service'} · <span className="capitalize">{lead.source}</span>
+          {lead.estimatedValue > 0 ? ` · ${fmtMoney(lead.estimatedValue)}` : ''}
+        </p>
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <span className="text-xs text-muted">{timeAgo(lead.capturedAt)}</span>
+          <div className="flex shrink-0 gap-2">
+            {lead.status !== 'won' && lead.status !== 'lost' ? (
+              <Button size="sm" variant="secondary" onClick={onWelcome}>Email</Button>
+            ) : null}
+            <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>Edit</Button>
+          </div>
+        </div>
+      </li>
       {open ? (
         <EditLeadModal
           lead={lead}

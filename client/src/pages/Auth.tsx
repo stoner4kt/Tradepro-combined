@@ -5,19 +5,17 @@ import { Alert, Button, Field, Input, Select } from '../components/ui.js';
 
 function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-page px-4 py-8">
       <div className="w-full max-w-md">
-        <div className="mb-8 flex flex-col items-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-500 shadow-lg shadow-teal-500/30">
-            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="h-6 w-6">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6M6 12h6" />
-            </svg>
+        <div className="mb-6 flex flex-col items-center">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-xl font-extrabold text-white shadow-sm shadow-brand-600/30">
+            T
           </div>
-          <h1 className="text-xl font-bold text-white">TradePro CRM</h1>
-          <p className="mt-1 text-sm text-slate-300">{subtitle}</p>
+          <h1 className="text-xl font-bold text-ink">TradePro</h1>
+          <p className="mt-1 text-sm text-muted">{subtitle}</p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white p-6 shadow-2xl">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">{title}</h2>
+        <div className="rounded-xl border border-line bg-white p-6 shadow-sm sm:p-7">
+          <h2 className="mb-4 text-lg font-semibold text-ink">{title}</h2>
           {children}
         </div>
       </div>
@@ -60,9 +58,9 @@ export function LoginPage() {
         <Button type="submit" disabled={busy} className="w-full">
           {busy ? 'Signing in…' : 'Sign in'}
         </Button>
-        <p className="text-center text-sm text-slate-500">
+        <p className="text-center text-sm text-muted">
           New to TradePro?{' '}
-          <Link to="/register" className="font-semibold text-teal-600 hover:text-teal-700">
+          <Link to="/register" className="font-semibold text-brand-600 transition duration-150 hover:text-brand-700">
             Create an account
           </Link>
         </p>
@@ -132,9 +130,9 @@ export function RegisterPage() {
         <Button type="submit" disabled={busy} className="w-full">
           {busy ? 'Creating account…' : 'Create account'}
         </Button>
-        <p className="text-center text-sm text-slate-500">
+        <p className="text-center text-sm text-muted">
           Already have an account?{' '}
-          <Link to="/login" className="font-semibold text-teal-600 hover:text-teal-700">
+          <Link to="/login" className="font-semibold text-brand-600 transition duration-150 hover:text-brand-700">
             Sign in
           </Link>
         </p>

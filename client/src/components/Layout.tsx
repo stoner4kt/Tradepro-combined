@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
 
 const nav = [
@@ -10,14 +11,32 @@ const nav = [
   { to: '/settings', label: 'Settings', icon: 'M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z' },
 ];
 
-const statusDot = (email: string) => {
-  const hash = email.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  const colors = ['bg-teal-500', 'bg-sky-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-400'];
-  return colors[hash % colors.length];
-};
+const desktopNav = nav.filter((n) => n.label !== 'Settings');
+const tabNav = [
+  { to: '/', label: 'Dashboard' },
+  { to: '/leads', label: 'Leads' },
+  { to: '/clients', label: 'Clients' },
+  { to: '/projects', label: 'Projects' },
+];
+const moreItems = [
+  { to: '/reviews', label: 'Reviews', icon: 'M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.563.563 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z' },
+  { to: '/ledger', label: 'Ledger', icon: 'M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25' },
+  { to: '/settings', label: 'Settings', icon: 'M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z' },
+];
+
+const LogoMark = () => (
+  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-[15px] font-extrabold leading-none text-brand-600">
+    T
+  </div>
+);
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const initials =
     user?.fullName
       ?.split(' ')
@@ -26,79 +45,187 @@ export default function Layout() {
       .map((w) => w[0]?.toUpperCase())
       .join('') || user?.email?.slice(0, 2).toUpperCase();
 
+  // Close the avatar dropdown on outside click and Escape.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [location.pathname]);
+
+  const avatarButton = (
+    <button
+      type="button"
+      onClick={() => setMenuOpen((v) => !v)}
+      aria-haspopup="menu"
+      aria-expanded={menuOpen}
+      aria-label="Account menu"
+      className="flex h-11 w-11 items-center justify-center rounded-full bg-white/25 text-xs font-bold text-white ring-1 ring-inset ring-white/40 transition duration-150 hover:bg-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white md:h-9 md:w-9"
+    >
+      {initials}
+    </button>
+  );
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r border-slate-200 bg-white lg:flex">
-        <div className="flex items-center gap-2.5 border-b border-slate-100 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-600 text-white shadow-sm shadow-teal-600/30">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6M6 12h6" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-900">TradePro CRM</p>
-            <p className="text-[11px] text-slate-400">Service business suite</p>
+    <div className="min-h-screen bg-page">
+      <header className="sticky top-0 z-30 h-14 border-b border-brand-700 bg-brand-600 shadow-sm">
+        <div className="mx-auto flex h-full max-w-[1280px] items-center gap-6 px-4 sm:px-6">
+          <Link to="/" className="flex min-h-[44px] min-w-0 items-center gap-2.5" aria-label="TradePro home">
+            <LogoMark />
+            <span className="hidden text-[15px] font-bold tracking-wide text-white sm:block">TradePro</span>
+          </Link>
+
+          <nav aria-label="Main" className="hidden items-stretch gap-1 self-stretch lg:flex">
+            {desktopNav.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === '/'}
+                className={({ isActive }) =>
+                  `relative flex items-center justify-center gap-1.5 px-3 text-[13px] font-medium transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${
+                    isActive
+                      ? 'text-white after:absolute after:inset-x-1 after:bottom-0 after:h-[3px] after:rounded-t bg-transparent'
+                      : 'text-[#e0ecff] hover:text-white'
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="ml-auto flex items-center gap-3">
+            <div className="relative" ref={menuRef}>
+              {avatarButton}
+              {menuOpen ? (
+                <div
+                  role="menu"
+                  aria-label="Account"
+                  className="absolute right-0 top-full z-40 mt-2 w-64 overflow-hidden rounded-xl border border-line bg-white shadow-lg"
+                >
+                  <div className="border-b border-[#eef1f6] px-4 py-3">
+                    <p className="truncate text-sm font-semibold text-ink">{user?.businessName || user?.fullName || 'Business'}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted">{user?.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={logout}
+                    className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-medium text-[#9f1239] transition duration-150 hover:bg-[#ffe4e6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-600"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-[18px] w-[18px]">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                    </svg>
+                    Sign out
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
+      </header>
 
-        <nav className="flex-1 space-y-1 px-3 py-4">
-          {nav.map((item) => (
+      <main className="mx-auto max-w-[1280px] px-4 pb-24 pt-5 sm:px-6 lg:px-6 lg:pb-8">
+        <Outlet />
+      </main>
+
+      <nav
+        aria-label="Mobile"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_12px_rgba(15,23,42,0.06)] lg:hidden"
+      >
+        <div className="mx-auto flex max-w-md items-stretch justify-around">
+          {tabNav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.to === '/'}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  isActive
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                `flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 pt-2 text-[11px] transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-600 ${
+                  isActive ? 'font-bold text-brand-600' : 'font-medium text-muted hover:text-ink'
                 }`
               }
+              style={{ paddingBottom: 'max(6px, env(safe-area-inset-bottom)/2)' }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-[18px] w-[18px]">
-                <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[22px] w-[22px]">
+                <path strokeLinecap="round" strokeLinejoin="round" d={nav.find((n) => n.to === item.to)?.icon ?? ''} />
               </svg>
               {item.label}
             </NavLink>
           ))}
-        </nav>
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={moreOpen}
+            aria-label="More"
+            className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 pt-2 text-[11px] transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-600 ${
+              moreOpen || moreItems.some((m) => m.to === location.pathname) ? 'font-bold text-brand-600' : 'font-medium text-muted hover:text-ink'
+            }`}
+            style={{ paddingBottom: 'max(6px, env(safe-area-inset-bottom)/2)' }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[22px] w-[22px]">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
+            </svg>
+            More
+          </button>
+        </div>
+      </nav>
 
-        <div className="border-t border-slate-100 p-4">
-          <div className="flex items-center gap-3">
-            <div className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white ${statusDot(user?.email ?? '')}`}>
-              {initials}
+      {moreOpen ? (
+        <div className="fixed inset-0 z-40 flex items-end justify-center lg:hidden" role="dialog" aria-modal="true" aria-label="More menu">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={() => setMoreOpen(false)} />
+          <div className="relative w-full max-w-md overflow-hidden rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl">
+            <div className="border-b border-[#eef1f6] px-[18px] py-4">
+              <h2 className="text-[15px] font-semibold text-ink">More</h2>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-slate-900">{user?.businessName || user?.fullName || 'Business'}</p>
-              <p className="truncate text-xs text-slate-400">{user?.email}</p>
+            <ul className="p-2">
+              {moreItems.map((item) => (
+                <li key={item.to}>
+                  <Link
+                    to={item.to}
+                    onClick={() => setMoreOpen(false)}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-600 ${
+                      location.pathname === item.to ? 'bg-brand-50 font-semibold text-brand-700' : 'text-ink hover:bg-slate-50'
+                    }`}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-5 w-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                    </svg>
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <div className="border-t border-[#eef1f6] p-2">
+              <button
+                type="button"
+                onClick={logout}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-[#9f1239] transition duration-150 hover:bg-[#ffe4e6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-600"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-5 w-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                </svg>
+                Sign out
+              </button>
             </div>
-            <button
-              onClick={logout}
-              title="Sign out"
-              className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4.5 w-4.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-              </svg>
-            </button>
           </div>
         </div>
-      </aside>
-
-      <div className="lg:pl-64">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-6 lg:hidden">
-          <p className="text-sm font-bold text-slate-900">TradePro CRM</p>
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-slate-600">{user?.businessName || user?.email}</span>
-            <button onClick={logout} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-300 hover:bg-slate-50">
-              Sign out
-            </button>
-          </div>
-        </header>
-        <main className="px-4 py-6 sm:px-6 lg:px-8">
-          <Outlet />
-        </main>
-      </div>
+      ) : null}
     </div>
   );
 }
