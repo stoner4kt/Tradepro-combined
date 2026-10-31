@@ -71,7 +71,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card title="Recent leads" subtitle="Newest captures first" action={<Link to="/leads" className={viewAllClass}>View all</Link>}>
           {stats.recentLeads.length === 0 ? (
             <EmptyState title="No leads yet" hint="Add your first lead or embed the lead capture widget on your website." />
@@ -118,7 +118,7 @@ export default function DashboardPage() {
 
       {(recentCaptures.length > 0 || recentEmails.length > 0) && (
         <Card title="Activity" subtitle="Latest form captures and emails sent">
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Form captures</p>
               {recentCaptures.length === 0 ? (
