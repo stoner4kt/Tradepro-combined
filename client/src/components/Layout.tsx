@@ -90,14 +90,14 @@ export default function Layout() {
             <span className="hidden text-[15px] font-bold tracking-wide text-white sm:block">TradePro</span>
           </Link>
 
-          <nav aria-label="Main" className="hidden items-center gap-1 self-stretch lg:flex">
+          <nav aria-label="Main" className="hidden items-stretch gap-1 self-stretch lg:flex">
             {desktopNav.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.to === '/'}
                 className={({ isActive }) =>
-                  `relative flex items-center gap-1.5 px-3 text-[13px] font-medium transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${
+                  `relative flex items-center justify-center gap-1.5 px-3 text-[13px] font-medium transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${
                     isActive
                       ? 'text-white after:absolute after:inset-x-1 after:bottom-0 after:h-[3px] after:rounded-t bg-transparent'
                       : 'text-[#e0ecff] hover:text-white'
