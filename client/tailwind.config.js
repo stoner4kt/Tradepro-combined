@@ -5,11 +5,19 @@ export default {
     extend: {
       colors: {
         brand: {
-          50: '#f0fdfa',
-          500: '#14b8a6',
-          600: '#0d9488',
-          700: '#0f766e',
+          50: '#eaf2ff',
+          500: '#3b82f6',
+          600: '#1d6fe8',
+          700: '#1558bd',
         },
+        page: '#eef1f6',
+        ink: '#1e293b',
+        muted: '#5b6b80',
+        line: '#e1e6ee',
+        bar: '#1d6fe8',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
       },
     },
   },
