@@ -1,4 +1,4 @@
-import type { ReviewFlowLead, ReviewFlowOverview, ReviewFlowSettings, ReviewStatusPayload, SendReviewPayload } from '../types/api.js';
+import type { InvoicingDocument, InvoicingKind, InvoicingPayment, InvoicingRevenue, InvoicingSettings, ReviewFlowLead, ReviewFlowOverview, ReviewFlowSettings, ReviewStatusPayload, SendReviewPayload } from '../types/api.js';
 
 export class ApiError extends Error {
   status: number;
@@ -210,3 +210,67 @@ export const rotateReviewFlowWidgetKey = () =>
   request<{ widget_api_key: string }>('/integration/reviews/settings/rotate-key', {
     method: 'POST',
   });
+
+// ---- Invoicing (quotes & invoices) — 404s when the Worker env (INVOICING_URL
+// + secret) is unset, same as the Reviews tab ----
+export const isInvoicingEnabled = (): boolean => import.meta.env.VITE_ENABLE_INVOICING === 'true';
+
+export const listInvoicingDocuments = (params = '') =>
+  request<{ documents: InvoicingDocument[]; count?: number }>(`/invoicing/documents${params}`);
+
+export const getInvoicingDocument = (id: string) =>
+  request<{ document: InvoicingDocument }>(`/invoicing/documents/${id}`);
+
+export const createInvoicingDocument = (payload: Record<string, unknown>) =>
+  request<{ document: InvoicingDocument }>('/invoicing/documents', { method: 'POST', body: JSON.stringify(payload) });
+
+export const updateInvoicingDocument = (id: string, patch: Record<string, unknown>) =>
+  request<{ document: InvoicingDocument }>(`/invoicing/documents/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+
+export const deleteInvoicingDocument = (id: string) =>
+  request<{ ok: boolean }>(`/invoicing/documents/${id}`, { method: 'DELETE' });
+
+export const invoicingDocumentFromProject = (projectId: string, kind: InvoicingKind) =>
+  request<{ document: InvoicingDocument }>('/invoicing/from-project', {
+    method: 'POST',
+    body: JSON.stringify({ projectId, kind }),
+  });
+
+export const invoicingDocumentFromLead = (leadId: string, kind: InvoicingKind) =>
+  request<{ document: InvoicingDocument }>('/invoicing/from-lead', {
+    method: 'POST',
+    body: JSON.stringify({ leadId, kind }),
+  });
+
+export const invoicingDocumentAction = (id: string, action: string, body: Record<string, unknown> = {}) =>
+  request<Record<string, unknown>>(`/invoicing/documents/${id}/${action}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const getInvoicingDocumentContent = (id: string, what: 'pdf' | 'view' | 'download') =>
+  request<unknown>(`/invoicing/documents/${id}/content/${what}`);
+
+export const listInvoicingPayments = (documentId: string) =>
+  request<{ payments: InvoicingPayment[] }>(`/invoicing/payments/${documentId}`);
+
+export const addInvoicingPayment = (documentId: string, payload: Record<string, unknown>) =>
+  request<{ payment: InvoicingPayment }>(`/invoicing/payments/${documentId}`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+export const deleteInvoicingPayment = (paymentId: string) =>
+  request<{ ok: boolean }>(`/invoicing/payments/${paymentId}`, { method: 'DELETE' });
+
+export const getInvoicingSettings = () =>
+  request<{ settings: InvoicingSettings }>('/invoicing/settings');
+
+export const updateInvoicingSettings = (patch: Record<string, unknown>) =>
+  request<{ settings: InvoicingSettings }>('/invoicing/settings', { method: 'PUT', body: JSON.stringify(patch) });
+
+export const getInvoicingRevenue = () =>
+  request<InvoicingRevenue>('/invoicing/revenue');

@@ -432,6 +432,56 @@ serve(async (req: Request): Promise<Response> => {
     if (rel[0] === "documents") {
       const id = rel[1];
 
+      // ---- constructor actions (from-project / from-lead) ----
+      // These live at /documents/from-project|from-lead (collection-level) and
+      // must run before the item branch — rel[1] is "from-project", not an id.
+      if (id === "from-project" || id === "from-lead") {
+        if (method !== "POST") return methodNotAllowed();
+        const isProject = id === "from-project";
+        const refKey = isProject ? "external_project_ref" : "external_lead_ref";
+        const refId = String(url.searchParams.get(isProject ? "projectId" : "leadId") || url.searchParams.get("id") || "");
+        if (!refId) return json({ error: `${isProject ? "projectId" : "leadId"} query parameter is required` }, 400);
+        const snap = await resolveCustomerSnapshot(admin, userId, refKey, refId);
+        if (!snap) return json({ error: isProject ? "Project not found or has no client" : "Lead not found" }, 404);
+        const kind = String(url.searchParams.get("kind") || "quote") === "invoice" ? "invoice" as const : "quote" as const;
+        const row = isProject ? await crmProject(admin, userId, refId) : await crmLead(admin, userId, refId);
+
+        const { id: newId } = await newDocumentId(admin, userId, kind);
+        // newDocumentId already persists a provisional row with the kind set.
+        const patch: Record<string, unknown> = {
+          [refKey]: refId,
+          customer_snapshot: snap,
+        };
+        if (isProject) {
+          const project = row as { title?: string; client_id?: string; est_value?: number } | null;
+          patch.external_customer_ref = project?.client_id || null;
+          patch.title = project?.title ? `Quote — ${project.title}` : "Quote";
+          if (project?.est_value) {
+            await insertLines(admin, userId, newId, [{ description: project.title || "Project", quantity: 1, unit_price_minor: Math.round(Number(project.est_value) * 100) }]);
+          }
+        } else {
+          const lead = row as { service?: string; message?: string; estimated_value?: number } | null;
+          patch.title = lead?.service ? `Quote — ${lead.service}` : "Quote";
+          patch.notes = lead?.message || "";
+          if (lead?.estimated_value) {
+            await insertLines(admin, userId, newId, [{ description: lead.service || "Service", quantity: 1, unit_price_minor: Math.round(Number(lead.estimated_value) * 100) }]);
+          }
+        }
+
+        const settings = await currentSettings(admin, userId);
+        if (kind === "quote") {
+          patch.quote_valid_until = addDaysISO(todayISO(), Number(settings?.quote_valid_days || 30));
+        } else {
+          patch.due_date = addDaysISO(todayISO(), Number(settings?.payment_terms_days || 14));
+        }
+
+        const { error } = await admin.from("documents").update(patch).eq("id", newId).eq("user_id", userId);
+        if (error) throw error;
+        const done = await fullDocument(admin, userId, newId);
+        if (done) await applyTotals(admin, userId, done, done.lines);
+        return json({ document: await fullDocument(admin, userId, newId) }, 201);
+      }
+
       // ---- collection ----
       if (!id) {
         if (method === "GET") {
@@ -529,66 +579,6 @@ serve(async (req: Request): Promise<Response> => {
 
       // ---- actions ----
       const action = rel[2];
-
-      if (method === "POST" && action === "from-project") {
-        const projectId = String(url.searchParams.get("projectId") || url.searchParams.get("id") || "");
-        if (!projectId) return json({ error: "projectId query parameter is required" }, 400);
-        const snap = await resolveCustomerSnapshot(admin, userId, "external_project_ref", projectId);
-        if (!snap) return json({ error: "Project not found or has no client" }, 404);
-        const kind = String(url.searchParams.get("kind") || "quote") === "invoice" ? "invoice" : "quote";
-        const { id: newId, number } = await newDocumentId(admin, userId, kind);
-        const project = await crmProject(admin, userId, projectId);
-        const patch: Record<string, unknown> = {
-          external_project_ref: projectId,
-          external_customer_ref: project?.client_id || null,
-          customer_snapshot: snap,
-          title: project?.title ? `Quote — ${project.title}` : "Quote",
-        };
-        const settings = await currentSettings(admin, userId);
-        if (kind === "quote") {
-          patch.quote_valid_until = addDaysISO(todayISO(), Number(settings?.quote_valid_days || 30));
-        } else {
-          patch.due_date = addDaysISO(todayISO(), Number(settings?.payment_terms_days || 14));
-        }
-        const { error } = await admin.from("documents").update(patch).eq("id", newId).eq("user_id", userId);
-        if (error) throw error;
-        if (project?.est_value) {
-          await insertLines(admin, userId, newId, [{ description: project.title || "Project", quantity: 1, unit_price_minor: Math.round(Number(project.est_value) * 100) }]);
-        }
-        const done = await fullDocument(admin, userId, newId);
-        if (done) await applyTotals(admin, userId, done, done.lines);
-        return json({ document: await fullDocument(admin, userId, newId) }, 201);
-      }
-
-      if (method === "POST" && action === "from-lead") {
-        const leadId = String(url.searchParams.get("leadId") || url.searchParams.get("id") || "");
-        if (!leadId) return json({ error: "leadId query parameter is required" }, 400);
-        const snap = await resolveCustomerSnapshot(admin, userId, "external_lead_ref", leadId);
-        if (!snap) return json({ error: "Lead not found" }, 404);
-        const kind = String(url.searchParams.get("kind") || "quote") === "invoice" ? "invoice" : "quote";
-        const { id: newId, number } = await newDocumentId(admin, userId, kind);
-        const lead = await crmLead(admin, userId, leadId);
-        const patch: Record<string, unknown> = {
-          external_lead_ref: leadId,
-          customer_snapshot: snap,
-          title: lead?.service ? `Quote — ${lead.service}` : "Quote",
-          notes: lead?.message || "",
-        };
-        const settings = await currentSettings(admin, userId);
-        if (kind === "quote") {
-          patch.quote_valid_until = addDaysISO(todayISO(), Number(settings?.quote_valid_days || 30));
-        } else {
-          patch.due_date = addDaysISO(todayISO(), Number(settings?.payment_terms_days || 14));
-        }
-        const { error } = await admin.from("documents").update(patch).eq("id", newId).eq("user_id", userId);
-        if (error) throw error;
-        if (lead?.estimated_value) {
-          await insertLines(admin, userId, newId, [{ description: lead.service || "Service", quantity: 1, unit_price_minor: Math.round(Number(lead.estimated_value) * 100) }]);
-        }
-        const done = await fullDocument(admin, userId, newId);
-        if (done) await applyTotals(admin, userId, done, done.lines);
-        return json({ document: await fullDocument(admin, userId, newId) }, 201);
-      }
 
       if (method === "POST" && action === "send") {
         let body: Record<string, unknown> = {};
