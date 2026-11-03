@@ -31,3 +31,20 @@ verify_jwt = false
 
 [functions.integration-settings]
 verify_jwt = false
+
+# Invoicing (quotes & invoices). Like the integration-* functions, these are
+# authenticated by their own mechanisms (x-integration-secret for invoicing-api,
+# CRON_SECRET for invoicing-cron, RESEND_WEBHOOK_SECRET for
+# invoicing-resend-webhook) and invoicing-public is a public share page, so the
+# Supabase JWT gateway check must stay off for all of them.
+[functions.invoicing-api]
+verify_jwt = false
+
+[functions.invoicing-public]
+verify_jwt = false
+
+[functions.invoicing-cron]
+verify_jwt = false
+
+[functions.invoicing-resend-webhook]
+verify_jwt = false
