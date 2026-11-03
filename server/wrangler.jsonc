@@ -38,6 +38,7 @@
 //   SUPABASE_URL           https://<ref>.supabase.co
 //   SUPABASE_ANON_KEY      <anon key>
 //   REVIEWFLOW_URL         https://<ref>.supabase.co   (same Supabase project)
+//   INVOICING_URL          https://<ref>.supabase.co   (same Supabase project)
 //
 // …and as encrypted secrets:
 //
@@ -46,9 +47,14 @@
 //   SUPABASE_SERVICE_KEY   service-role key (note: NOT SUPABASE_SERVICE_ROLE_KEY)
 //   RESEND_API_KEY         transactional + review email
 //   REVIEWFLOW_SECRET      MUST equal INTEGRATION_SECRET on the edge functions
+//   INVOICING_SECRET       MUST equal INTEGRATION_SECRET; falls back to
+//                          REVIEWFLOW_SECRET if not set here
 //   CAPTURE_SECRET         optional — only if REQUIRE_CAPTURE_SECRET is set
 //   RESEND_FROM_EMAIL      optional (defaults to onboarding@resend.dev)
 //   RESEND_REPLY_TO        optional
+//
+// To enable the Invoicing tab set INVOICING_URL + INVOICING_SECRET and add
+// VITE_ENABLE_INVOICING=true to the Pages build (client/.env.example).
 //
 // Adding a key here would silently override the dashboard value on every
 // deploy, which is exactly what this file avoids.
