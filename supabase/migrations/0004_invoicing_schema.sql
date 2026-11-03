@@ -43,6 +43,7 @@ create table if not exists invoicing.settings (
   quote_prefix          text        not null default 'QT-',
   next_invoice_number   bigint      not null default 1,
   next_quote_number     bigint      not null default 1,
+  bank_details          text        not null default '',
   notes                 text        not null default '',
   created_at            timestamptz not null default now(),
   updated_at            timestamptz not null default now()
@@ -312,3 +313,76 @@ create trigger invoicing_customers_updated_at before update on invoicing.custome
 insert into storage.buckets (id, name, public)
 values ('invoicing-documents', 'invoicing-documents', false)
 on conflict (id) do nothing;
+
+revoke all on storage.objects from anon;
+
+-- ---------------------------------------------------------------------------
+-- Document numbering RPC (used by the invoicing-api edge function).
+--
+-- Mints the next number for (user_id, kind) and creates a provisional
+-- draft document row in one transaction. A pg_advisory_xact_lock on the
+-- settings row serializes concurrent mints per user so numbers are gapless.
+-- The provisional row is what edit/create flows then patch with real content.
+-- ---------------------------------------------------------------------------
+create or replace function invoicing.mint_document_number(p_user_id uuid, p_kind text)
+returns table (id uuid, number text)
+language plpgsql
+security definer set search_path = invoicing
+as $$
+declare
+  v_settings_id  uuid;
+  v_counter      bigint;
+  v_prefix       text;
+  v_doc_id       uuid;
+begin
+  if p_kind not in ('quote', 'invoice') then
+    raise exception 'invalid document kind %', p_kind;
+  end if;
+
+  -- The document insert touches settings implicitly (we update the counter),
+  -- but settings seeding happens via the before-insert trigger, so make sure
+  -- a settings row exists up-front and create it on first use.
+  select id into v_settings_id
+    from invoicing.settings
+   where user_id = p_user_id
+   for update;
+
+  if v_settings_id is null then
+    insert into invoicing.settings (user_id)
+    values (p_user_id);
+
+    select id into v_settings_id
+      from invoicing.settings
+     where user_id = p_user_id;
+  end if;
+
+  select coalesce(next_invoice_number, 1),
+         coalesce(nullif(invoice_prefix, ''), 'INV-')
+    into v_counter, v_prefix
+    from invoicing.settings
+   where id = v_settings_id;
+
+  if p_kind = 'quote' then
+    select coalesce(next_quote_number, 1),
+           coalesce(nullif(quote_prefix, ''), 'QT-')
+      into v_counter, v_prefix
+      from invoicing.settings
+     where id = v_settings_id;
+  end if;
+
+  insert into invoicing.documents (user_id, kind, number, status)
+  values (p_user_id, p_kind, v_prefix || v_counter::text, 'draft')
+  returning id into v_doc_id;
+
+  if p_kind = 'quote' then
+    update invoicing.settings set next_quote_number = v_counter + 1 where id = v_settings_id;
+  else
+    update invoicing.settings set next_invoice_number = v_counter + 1 where id = v_settings_id;
+  end if;
+
+  return query select v_doc_id, v_prefix || v_counter::text;
+end;
+$$;
+
+revoke all on function invoicing.mint_document_number(uuid, text) from public, anon;
+grant execute on function invoicing.mint_document_number(uuid, text) to service_role, authenticated;
