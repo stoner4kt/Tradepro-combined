@@ -153,6 +153,15 @@ supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 supabase secrets set RESEND_API_KEY=re_xxxx
 # This MUST equal the Worker's REVIEWFLOW_SECRET / INVOICING_SECRET:
 supabase secrets set INTEGRATION_SECRET=<long-random-string>
+# Invoicing (all invoicing-* functions):
+#  - APP_URL = deployed Pages URL, e.g. https://crm-with-reviews.pages.dev
+#    (prefixes the /q/:token /i/:token share links placed in sent emails)
+#  - X_API_KEY must equal the Worker's SV_API_KEY (second factor for
+#    pdf/view/download content)
+#  - INVOICING_FROM_EMAIL overrides RESEND_FROM_EMAIL for quote/invoice mail
+supabase secrets set APP_URL=https://your-app.example.com
+supabase secrets set X_API_KEY=<long-random-string>
+supabase secrets set INVOICING_FROM_EMAIL='TradePro <no-reply@resend.dev>'
 # Optional, per-function:
 supabase secrets set --env invoicing-cron CRON_SECRET=<long-random-string>
 supabase secrets set --env invoicing-resend-webhook RESEND_WEBHOOK_SECRET=<long-random-string>

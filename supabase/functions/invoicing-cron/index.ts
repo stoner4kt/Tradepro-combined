@@ -46,7 +46,7 @@ async function sendReminderEmail(doc: DocRow, settings: SettingsRow): Promise<{ 
     totalLabel: fmtMoney(doc.total_minor, { currency: doc.currency }),
     dueLabel: "Overdue",
     replyToEmail: settings.reply_to_email || settings.email,
-    primaryUrl: `${(Deno.env.get("APP_URL") || "").replace(/\/+$/, "")}/#/public/invoice/${doc.token}`,
+    primaryUrl: `${(Deno.env.get("APP_URL") || "").replace(/\/+$/, "")}/i/${encodeURIComponent(doc.token)}`,
   });
   if (!apiKey) {
     return { status: "queued", message_id: null }; // dev mode — log only

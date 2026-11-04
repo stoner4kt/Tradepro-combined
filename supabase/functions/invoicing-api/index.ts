@@ -93,8 +93,13 @@ function numbersFromSnapshot(snapshot: Record<string, unknown>): { email: string
 }
 
 function publicShareUrl(env: string | undefined, kind: DocumentKind, token: string): string {
+  // The merged dashboard hosts the share redirectors at /q/:token (quotes)
+  // and /i/:token (invoices), NOT the standalone hash routes, so emails open
+  // the correct page. APP_URL should be the deployed Pages URL, e.g.
+  // https://crm-with-reviews.pages.dev.
   const base = (env || "").replace(/\/+$/, "");
-  return `${base}/#/public/${kind}/${token}`;
+  const route = kind === "invoice" ? "i" : "q";
+  return `${base}/${route}/${encodeURIComponent(token)}`;
 }
 
 async function currentSettings(admin: SupabaseClient, userId: string) {
