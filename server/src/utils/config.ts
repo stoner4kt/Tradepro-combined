@@ -70,6 +70,23 @@ export const config = {
     // Send review email automatically when a CRM project is completed.
     autoSend: bool(process.env.REVIEWFLOW_AUTO_SEND, true),
   },
+
+  // Invoicing (quotes & invoices) integration (merged deploy). Like ReviewFlow
+  // the Invoicing edge functions live on the SAME Supabase project, so
+  // INVOICING_URL is typically identical to SUPABASE_URL. INVOICING_SECRET is
+  // forwarded as x-integration-secret to the edge functions (which compare it
+  // against INTEGRATION_SECRET — the two are independent products, each with
+  // its own secret); SV_API_KEY is forwarded as x-api-key for the pdf/view/
+  // download share endpoints.
+  invoicing: {
+    url: process.env.INVOICING_URL || process.env.INVOICING_SUPABASE_URL || process.env.SUPABASE_URL || '',
+    secret: process.env.INVOICING_SECRET || process.env.INTEGRATION_SECRET || '',
+    // Second factor for "active" true share endpoints (pdf/view/download).
+    svApiKey: process.env.SV_API_KEY || process.env.SV_API_KEY_ALT || '',
+    // Feature flag — the combined dashboard routes 404 when not configured
+    // (same behaviour as the Reviews tab), so a pure-CRM deploy is unaffected.
+    enabled: Boolean(process.env.INVOICING_URL && (process.env.INVOICING_SECRET || process.env.INTEGRATION_SECRET)),
+  },
 };
 
 export function loadSecretsHelpText(): string {

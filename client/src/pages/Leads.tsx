@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api.js';
 import { ApiError } from '../lib/api.js';
 import type { Lead, LeadStatus } from '../types/api.js';
@@ -40,6 +41,18 @@ export default function LeadsPage() {
       setNotice(`Welcome email sent via ${res.provider} provider.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to send email');
+    }
+  };
+
+  // Invoicing integration (combined dashboard only; guarded by client flag).
+  const navigate = useNavigate();
+  const invoicingEnabled = api.isInvoicingEnabled();
+  const quoteFromLead = async (id: string) => {
+    try {
+      const res = await api.invoicingDocumentFromLead(id, 'quote');
+      navigate('/invoicing', { state: { focusDocumentId: res.document.id } });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create quote');
     }
   };
 
@@ -104,7 +117,7 @@ export default function LeadsPage() {
                 </thead>
                 <tbody className="divide-y divide-[#eef1f6]">
                   {leads.map((lead) => (
-                    <LeadRow key={lead.id} lead={lead} onChanged={load} onError={setError} onWelcome={() => sendWelcome(lead.id)} />
+                    <LeadRow key={lead.id} lead={lead} onChanged={load} onError={setError} onWelcome={() => sendWelcome(lead.id)} onQuote={invoicingEnabled ? () => quoteFromLead(lead.id) : undefined} />
                   ))}
                 </tbody>
               </table>
@@ -113,7 +126,7 @@ export default function LeadsPage() {
 
           <ul className="space-y-3 md:hidden">
             {leads.map((lead) => (
-              <LeadMobileCard key={lead.id} lead={lead} onChanged={load} onError={setError} onWelcome={() => sendWelcome(lead.id)} />
+              <LeadMobileCard key={lead.id} lead={lead} onChanged={load} onError={setError} onWelcome={() => sendWelcome(lead.id)} onQuote={invoicingEnabled ? () => quoteFromLead(lead.id) : undefined} />
             ))}
           </ul>
         </>
@@ -124,11 +137,12 @@ export default function LeadsPage() {
   );
 }
 
-function LeadRow({ lead, onChanged, onError, onWelcome }: {
+function LeadRow({ lead, onChanged, onError, onWelcome, onQuote }: {
   lead: Lead;
   onChanged: () => Promise<void>;
   onError: (m: string) => void;
   onWelcome: () => void;
+  onQuote?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -155,6 +169,9 @@ function LeadRow({ lead, onChanged, onError, onWelcome }: {
             {lead.status !== 'won' && lead.status !== 'lost' ? (
               <Button size="sm" variant="secondary" onClick={onWelcome}>Email</Button>
             ) : null}
+            {onQuote && lead.status === 'won' ? (
+              <Button size="sm" variant="secondary" onClick={onQuote}>Quote</Button>
+            ) : null}
           </div>
         </td>
       </tr>
@@ -170,11 +187,12 @@ function LeadRow({ lead, onChanged, onError, onWelcome }: {
   );
 }
 
-function LeadMobileCard({ lead, onChanged, onError, onWelcome }: {
+function LeadMobileCard({ lead, onChanged, onError, onWelcome, onQuote }: {
   lead: Lead;
   onChanged: () => Promise<void>;
   onError: (m: string) => void;
   onWelcome: () => void;
+  onQuote?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -196,6 +214,9 @@ function LeadMobileCard({ lead, onChanged, onError, onWelcome }: {
           <div className="flex shrink-0 gap-2">
             {lead.status !== 'won' && lead.status !== 'lost' ? (
               <Button size="sm" variant="secondary" onClick={onWelcome}>Email</Button>
+            ) : null}
+            {onQuote && lead.status === 'won' ? (
+              <Button size="sm" variant="secondary" onClick={onQuote}>Quote</Button>
             ) : null}
             <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>Edit</Button>
           </div>

@@ -197,6 +197,101 @@ export interface ReviewFlowOverview {
   review_requests: ReviewFlowReviewRequest[];
 }
 
+// ---- Invoicing (quotes & invoices) ----
+// Shapes returned by the authenticated /api/invoicing/* proxy (which forwards
+// to the invoicing-api edge function). Monetary values are integer minor units.
+
+export type InvoicingKind = 'quote' | 'invoice';
+export type InvoicingStatus =
+  | 'draft' | 'sent' | 'accepted' | 'declined'
+  | 'issued' | 'partially_paid' | 'paid' | 'overdue' | 'void';
+
+export interface InvoicingCustomerSnapshot {
+  name?: string;
+  email?: string;
+  phone?: string;
+  first_name?: string;
+  last_name?: string;
+  address?: { street_line1?: string; street_line2?: string; city?: string; state?: string; zip?: string };
+}
+
+export interface InvoicingDocumentLine {
+  id: string;
+  document_id: string;
+  description: string;
+  quantity: number;
+  unit_price_minor: number;
+  sort_order: number;
+}
+
+export interface InvoicingDocument {
+  id: string;
+  user_id: string;
+  kind: InvoicingKind;
+  number: string;
+  status: InvoicingStatus;
+  external_customer_ref: string | null;
+  external_project_ref: string | null;
+  external_lead_ref: string | null;
+  customer_snapshot: InvoicingCustomerSnapshot | null;
+  issue_date: string | null;
+  due_date: string | null;
+  quote_valid_until: string | null;
+  title: string;
+  notes: string;
+  currency: string;
+  subtotal_minor: number;
+  tax_minor: number;
+  total_minor: number;
+  amount_paid_minor: number;
+  token: string;
+  sent_at: string | null;
+  meta: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  lines?: InvoicingDocumentLine[];
+}
+
+export interface InvoicingSettings {
+  id: string;
+  user_id: string;
+  business_name: string;
+  email: string;
+  phone: string;
+  reply_to_email: string;
+  currency: string;
+  locale: string;
+  tax_rate: number;
+  payment_terms_days: number;
+  quote_valid_days: number;
+  invoice_prefix: string;
+  quote_prefix: string;
+  next_invoice_number: number;
+  next_quote_number: number;
+  bank_details: string;
+  notes: string;
+}
+
+export interface InvoicingPayment {
+  id: string;
+  document_id: string;
+  amount_minor: number;
+  method: string;
+  notes: string;
+  received_at: string;
+  created_at: string;
+}
+
+export interface InvoicingRevenue {
+  totals: {
+    invoiced: number;
+    paid: number;
+    outstanding: number;
+    document_count: number;
+    open_count: number;
+  };
+}
+
 export interface DashboardStats {
   totalLeads: number;
   newLeads: number;

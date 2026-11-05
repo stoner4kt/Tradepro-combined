@@ -1,7 +1,7 @@
 # crm-with-reviews
 
-TradePro CRM **+** ReviewFlow, merged into one deployable system on a **single
-Supabase project**.
+TradePro CRM **+** ReviewFlow **+** Invoicing, merged into one deployable
+system on a **single Supabase project**.
 
 - **TradePro CRM** — service-business CRM (leads, clients, projects, email
   capture, ledger) with its own JWT auth against the `profiles` table.
@@ -9,6 +9,11 @@ Supabase project**.
   review emails, embeddable `widget.js`, edge functions) now running off the
   **same** Supabase project and reachable from the CRM dashboard **under the
   same login**.
+- **Invoicing** — quotes & invoices (line items, settings with per-user
+  numbering, PDF/view/download, Resend email, payments, revenue) running as
+  edge functions in a clean `invoicing` schema and reachable from the **same
+  dashboard / same login** via the `/api/invoicing/*` proxy. Standalone
+  share pages for unlocked documents are served by `invoicing-public`.
 
 See **[SETUP-GUIDE.md](./SETUP-GUIDE.md)** for the exact deployment steps.
 
@@ -18,22 +23,31 @@ See **[SETUP-GUIDE.md](./SETUP-GUIDE.md)** for the exact deployment steps.
 .
 ├── package.json                 # npm workspaces: server + client
 ├── supabase/
-│   ├── migrations/              # ONE project — CRM + Reviews
+│   ├── migrations/              # ONE project — CRM + Reviews + Invoicing
 │   │   ├── 0001_crm_init.sql            # public.* CRM schema + signup trigger
 │   │   ├── 0002_crm_lead_conversion.sql # convert_lead_to_client, get_dashboard_stats
-│   │   └── 0003_reviewflow_schema.sql   # reviewflow.* Reviews schema + RLS
-│   └── functions/               # ReviewFlow edge functions (single project)
-│       ├── _shared/             # cors, supabase client, email helpers
+│   │   ├── 0003_reviewflow_schema.sql   # reviewflow.* Reviews schema + RLS
+│   │   ├── 0004_invoicing_schema.sql    # invoicing.* quotes/invoices schema
+│   │   └── 0005_invoicing_crm_hooks.sql # crossed-walk helper + email mirror
+│   └── functions/               # ReviewFlow + Invoicing edge functions
+│       ├── _shared/             # cors, supabase clients, email helpers
+│       ├── _shared/core/        # invoicing core: types, money, numbering
+│       ├── _shared/invoicing/   # re-export shims for the invoicing-* functions
 │       ├── capture-lead/
 │       ├── send-review-email/
-│       └── integration-*/       # capture, lead, lookup, overview, send-review, settings
+│       ├── integration-*/       # capture, lead, lookup, overview, send-review, settings
+│       ├── invoicing-api/       # quotes/invoices CRUD + actions (auth proxy)
+│       ├── invoicing-public/    # token-based share page (no auth)
+│       ├── invoicing-cron/      # scheduled due-date reminders
+│       └── invoicing-resend-webhook/  # Resend status updates → email_events
 ├── server/                      # Cloudflare Worker — Express-compatible CRM API
 │   ├── src/
 │   │   ├── worker.ts            # Workers entry (cloudflare:node httpServerHandler)
 │   │   ├── app.ts               # route wiring
 │   │   ├── routes/              # auth, leads, clients, projects, dashboard,
-│   │   │                        #   settings, captures, integration (reviews proxy)
-│   │   ├── services/            # auth, email, reviewFlow integration
+│   │   │                        #   settings, captures, integration (reviews),
+│   │   │                        #   invoicing (quotes/invoices proxy)
+│   │   ├── services/            # auth, email, reviewFlow, invoicing
 │   │   ├── store/               # Store interface + LocalStore + SupabaseStore
 │   │   └── utils/               # config, jwt, logger, validation
 │   ├── wrangler.jsonc           # deploy config; vars set in the dashboard
@@ -41,9 +55,9 @@ See **[SETUP-GUIDE.md](./SETUP-GUIDE.md)** for the exact deployment steps.
 └── client/                      # Cloudflare Pages — React + Vite dashboard
     ├── src/
     │   ├── pages/               # Dashboard, Leads, Clients, Projects, Reviews,
-    │   │                        #   Settings, Ledger, Auth
+    │   │                        #   Invoicing, Settings, Ledger, Auth
     │   ├── widget/index.ts      # embeddable widget (built to dist/widget.js)
-    │   └── lib/api.ts           # CRM API client + Reviews proxy client
+    │   └── lib/api.ts           # CRM API client + Reviews + Invoicing proxy
     ├── vite.widget.config.ts    # widget build
     ├── public/_redirects        # SPA deep-link fallback
     ├── public/_routes.json      # static-only Pages routing
@@ -91,6 +105,40 @@ both the dashboard and `/widget.js`. The Settings page's “Widget &
 Integration” snippets reference `VITE_APP_URL` + `VITE_SUPABASE_URL` exactly
 like the standalone.
 
+## Invoicing (quotes & invoices)
+
+The Invoicing module follows the exact same integration pattern as ReviewFlow:
+
+- Data lives in its own **`invoicing`** schema (`settings`, `documents`,
+  `document_lines`, `payments`, `email_events`) with a `user_id` column on
+  every table and per-user RLS. Total, tax, and due-date reminders are
+  recomputed server-side by the edge functions.
+- The dashboard talks to `/api/invoicing/*` on the CRM Worker. Every route is
+  allowlisted in `server/src/routes/invoicing.ts` and 404s when the
+  integration is not configured. The `invoicingService.ts` module is the only
+  place that builds outbound headers (`x-integration-secret`,
+  `x-user-id`, `x-api-key` for the active share endpoints).
+- Edge functions are multi-tenant and scoped by `user_id`
+  (`_shared/invoicing/supabase.ts`); `adminClient()` passes
+  `{ db: { schema: "invoicing" } }` just like `reviewflow` in the Reviews
+  module.
+- "Create quote" buttons on **Projects** and **won Leads** construct a
+  document via `/invoicing/from-project` and `/invoicing/from-lead` using the
+  CRM `public.clients` snapshot, then deep-link back into the editor.
+- Public share pages are served *without* auth by `invoicing-public` at
+  `/functions/v1/invoicing-public/<quote|invoice>/<token>`; the client
+  redirects `/q/:token` and `/i/:token` share links straight there.
+- `invoicing-cron` fires scheduled due-date reminders; the optional
+  `invoicing-resend-webhook` mirrors Resend status updates into
+  `invoicing.email_events`, which migration `0005` copies into
+  `public.email_logs` so they show up in the CRM Ledger.
+
+To enable: set `INVOICING_URL` + `INVOICING_SECRET` on the Worker
+(`INVOICING_SECRET` falls back to `REVIEWFLOW_SECRET`) and ship the client
+with `VITE_ENABLE_INVOICING=true`. Without either, the Invoicing tab shows its
+"not configured" state and the `/api/invoicing/*` routes 404 — a pure-CRM
+deploy is unaffected.
+
 ### Concurrency / extraction
 
 To ship ReviewFlow standalone again later:
@@ -102,8 +150,15 @@ To ship ReviewFlow standalone again later:
 3. Swap the dashboard's `api.*` Reviews calls back to direct
    `@supabase/supabase-js` / edge-function calls.
 
+The Invoicing module is kept just as extractable: `supabase/functions/_shared`
+(core + invoicing shims), the `invoicing-*` functions, and `pages/Invoicing.tsx`
+are cleanly separated behind the `invoicing` schema. Extracting means stripping
+`user_id`/integration auth and restoring single-tenant RLS — mirroring the
+ReviewFlow recipe.
+
 No CRM-specific code leaks into the Reviews modules: the edge functions only
-depend on `user_id` + `x-integration-secret` headers.
+depend on `user_id` + `x-integration-secret` headers. The same is true for the
+`invoicing-*` functions (plus `x-api-key` for the active share endpoints).
 
 ## Development
 
@@ -143,6 +198,8 @@ npm run deploy:worker -w server     # uses server/wrangler.jsonc
 | `REVIEWFLOW_URL` | **same** Supabase project URL |
 | `REVIEWFLOW_SECRET` (alias `INTEGRATION_SECRET`) | must equal edge-function `INTEGRATION_SECRET` |
 | `REVIEWFLOW_AUTO_SEND` | auto-send on completed projects |
+| `INVOICING_URL` | **same** Supabase project URL |
+| `INVOICING_SECRET` (falls back to `REVIEWFLOW_SECRET`) | must equal edge-function `INTEGRATION_SECRET` |
 | `CORS_ORIGIN` | Pages domain |
 | `CAPTURE_SECRET`, `REQUIRE_CAPTURE_SECRET` | optional capture protection |
 
@@ -154,6 +211,7 @@ npm run deploy:worker -w server     # uses server/wrangler.jsonc
 | `VITE_APP_URL` | Pages URL (widget snippets) |
 | `VITE_SUPABASE_URL` | merged project |
 | `VITE_ENABLE_REVIEWS_INTEGRATION` | `true` |
+| `VITE_ENABLE_INVOICING` | `true` — shows the Invoicing tab + quote buttons |
 | `VITE_API_TIMEOUT_MS` | optional |
 
 **Edge functions (`supabase/functions/`):**
@@ -162,8 +220,10 @@ npm run deploy:worker -w server     # uses server/wrangler.jsonc
 |---|---|
 | `SUPABASE_URL` | project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | service-role secret |
-| `RESEND_API_KEY` | review emails |
-| `INTEGRATION_SECRET` | shared with the Worker |
+| `RESEND_API_KEY` | review emails; also used by invoicing-* |
+| `INTEGRATION_SECRET` | shared with the Worker (`REVIEWFLOW_SECRET` / `INVOICING_SECRET`) |
+| `CRON_SECRET` | `invoicing-cron` schedule auth |
+| `RESEND_WEBHOOK_SECRET` | `invoicing-resend-webhook` signature verification |
 
 No real secrets are committed — all values are placeholders in
 `.env.example` files, and the Worker vars live in the Cloudflare dashboard.

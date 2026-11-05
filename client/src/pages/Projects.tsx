@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api.js';
 import { ApiError } from '../lib/api.js';
 import type { Client, Project, ProjectPriority, ProjectStatus } from '../types/api.js';
@@ -211,8 +212,20 @@ function ProjectStatusChips({ project, onAdvance }: { project: Project; onAdvanc
 }
 
 function ProjectCard({ project, onChanged, onError }: { project: Project; onChanged: () => Promise<void>; onError: (m: string) => void }) {
+  const navigate = useNavigate();
   const { open, setOpen, sendBox, setSendBox, message, setMessage, sendState, review, reviewsEnabled, advance, sendUpdate, sendReview, del } =
     useProjectActions(project, onChanged, onError);
+  const invoicingEnabled = api.isInvoicingEnabled();
+
+  const quoteFromProject = async () => {
+    try {
+      if (!project.clientId) throw new Error('This project has no client — add one first.');
+      const res = await api.invoicingDocumentFromProject(project.id, 'quote');
+      navigate('/invoicing', { state: { focusDocumentId: res.document.id } });
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'Failed to create quote');
+    }
+  };
 
   return (
     <Card className="transition duration-150 hover:shadow-md">
@@ -247,6 +260,9 @@ function ProjectCard({ project, onChanged, onError }: { project: Project; onChan
             <Button size="sm" variant="secondary" onClick={() => void sendReview()} disabled={review?.busy}>
               {review?.busy ? 'Sending…' : 'Send Review Request'}
             </Button>
+          ) : null}
+          {invoicingEnabled ? (
+            <Button size="sm" variant="secondary" onClick={() => void quoteFromProject()}>Create quote</Button>
           ) : null}
           <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>Edit</Button>
           <Button size="sm" variant="danger" onClick={() => void del()}>Delete</Button>
