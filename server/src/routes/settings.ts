@@ -17,7 +17,7 @@ export function settingsRoutes(store: Store): Router {
     }),
   );
 
-  router.put(
+  router.patch(
     '/',
     asyncHandler(async (req, res) => {
       const parsed = settingsUpdateSchema.safeParse(req.body);

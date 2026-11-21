@@ -248,6 +248,7 @@ function DocumentEditor({ doc, onClose, onSaved }: { doc: InvoicingDocument; onC
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Currency">
             <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              <option value="ZAR">ZAR — South African Rand</option>
               <option value="USD">USD — US Dollar</option>
               <option value="EUR">EUR — Euro</option>
               <option value="GBP">GBP — British Pound</option>
@@ -391,7 +392,7 @@ function SettingsForm({ settings, onSaved }: { settings: InvoicingSettings; onSa
         </Field>
         <Field label="Currency">
           <Select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
-            <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option>
+            <option value="ZAR">ZAR</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option>
             <option value="CAD">CAD</option><option value="AUD">AUD</option>
           </Select>
         </Field>
