@@ -83,35 +83,19 @@ describe('Auth API', () => {
     expect(res.body.user.businessType).toBe('hvac');
   });
 
-  it('changes the password', async () => {
+  it('no longer exposes change-password or reset-password endpoints', async () => {
     const reg = await request(app).post('/api/auth/register').send({
       email: 'password@example.com',
       password: 'password123',
     });
+
     const change = await request(app)
       .post('/api/auth/change-password')
       .set('Authorization', `Bearer ${reg.body.token}`)
       .send({ currentPassword: 'password123', newPassword: 'newpassword456' });
-    expect(change.status).toBe(200);
+    expect(change.status).toBe(404);
 
-    const oldLogin = await request(app).post('/api/auth/login').send({
-      email: 'password@example.com',
-      password: 'password123',
-    });
-    expect(oldLogin.status).toBe(401);
-
-    const newLogin = await request(app).post('/api/auth/login').send({
-      email: 'password@example.com',
-      password: 'newpassword456',
-    });
-    expect(newLogin.status).toBe(200);
-  });
-
-  it('reset-password never leaks whether an email exists', async () => {
-    const existing = await request(app).post('/api/auth/reset-password').send({ email: 'plumber@example.com' });
-    const missing = await request(app).post('/api/auth/reset-password').send({ email: 'ghost@example.com' });
-    expect(existing.status).toBe(200);
-    expect(missing.status).toBe(200);
-    expect(existing.body.message).toBe(missing.body.message);
+    const reset = await request(app).post('/api/auth/reset-password').send({ email: 'plumber@example.com' });
+    expect([401, 404]).toContain(reset.status);
   });
 });

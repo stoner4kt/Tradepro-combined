@@ -63,31 +63,6 @@ export default function SettingsPage() {
     }
   };
 
-  const submitPassword = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setBusy(true);
-    setError('');
-    setSaved(false);
-    const f = new FormData(e.currentTarget);
-    const currentPassword = String(f.get('currentPassword') ?? '');
-    const newPassword = String(f.get('newPassword') ?? '');
-    if (newPassword.length < 8) {
-      setError('New password must be at least 8 characters');
-      setBusy(false);
-      return;
-    }
-    try {
-      await api.changePassword(currentPassword, newPassword);
-      e.currentTarget.reset();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to change password');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   if (!settings) return error ? <Alert tone="error">{error}</Alert> : <Spinner label="Loading settings…" />;
 
   return (
@@ -137,6 +112,7 @@ export default function SettingsPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Currency">
                   <Select name="currency" defaultValue={settings.currency}>
+                    <option value="ZAR">ZAR — South African Rand</option>
                     <option value="USD">USD — US Dollar</option>
                     <option value="CAD">CAD — Canadian Dollar</option>
                     <option value="GBP">GBP — British Pound</option>
@@ -163,16 +139,6 @@ export default function SettingsPage() {
               </label>
               <div className="flex justify-end border-t border-[#eef1f6] pt-4">
                 <Button type="submit" disabled={busy} className="w-full sm:w-auto">{busy ? 'Saving…' : 'Save email settings'}</Button>
-              </div>
-            </form>
-          </Card>
-
-          <Card title="Change password" subtitle="Keep your account secure">
-            <form onSubmit={submitPassword} className="space-y-4">
-              <Field label="Current password"><Input type="password" name="currentPassword" required /></Field>
-              <Field label="New password" hint="At least 8 characters"><Input type="password" name="newPassword" required /></Field>
-              <div className="flex justify-end border-t border-[#eef1f6] pt-4">
-                <Button type="submit" disabled={busy} className="w-full sm:w-auto">{busy ? 'Updating…' : 'Update password'}</Button>
               </div>
             </form>
           </Card>

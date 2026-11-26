@@ -86,12 +86,6 @@ export const me = () => request<{ user: import('../types/api.js').User }>('/auth
 export const updateProfile = (patch: Record<string, unknown>) =>
   request<{ user: import('../types/api.js').User }>('/auth/profile', { method: 'PATCH', body: JSON.stringify(patch) });
 
-export const changePassword = (currentPassword: string, newPassword: string) =>
-  request<{ ok: boolean }>('/auth/change-password', {
-    method: 'POST',
-    body: JSON.stringify({ currentPassword, newPassword }),
-  });
-
 // ---- Leads ----
 export const listLeads = (params = '') =>
   request<{ leads: import('../types/api.js').Lead[] }>(`/leads${params}`);
