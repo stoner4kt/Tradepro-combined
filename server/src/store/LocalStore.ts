@@ -467,6 +467,8 @@ export class LocalStore implements Store {
         if (patch.replyToEmail !== undefined) s.replyToEmail = patch.replyToEmail;
         if (patch.currency !== undefined) s.currency = patch.currency;
         if (patch.emailNotifications !== undefined) s.emailNotifications = patch.emailNotifications;
+        if (patch.allowedOrigins !== undefined) s.allowedOrigins = patch.allowedOrigins;
+        if (patch.dailyEmailCap !== undefined) s.dailyEmailCap = patch.dailyEmailCap;
         s.updatedAt = this.now();
         return s;
       }
@@ -474,6 +476,8 @@ export class LocalStore implements Store {
       if (patch.businessType !== undefined) s.businessType = patch.businessType;
       if (patch.currency !== undefined) s.currency = patch.currency;
       if (patch.emailNotifications !== undefined) s.emailNotifications = patch.emailNotifications;
+      if (patch.allowedOrigins !== undefined) s.allowedOrigins = patch.allowedOrigins;
+      if (patch.dailyEmailCap !== undefined) s.dailyEmailCap = patch.dailyEmailCap;
       this.rows.push({ kind: 'settings', data: s });
       return s;
     });
@@ -624,6 +628,8 @@ function defaultSettings(userId: string, businessName: string, email: string): S
     replyToEmail: email,
     currency: 'USD',
     emailNotifications: true,
+    allowedOrigins: [],
+    dailyEmailCap: 50,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
