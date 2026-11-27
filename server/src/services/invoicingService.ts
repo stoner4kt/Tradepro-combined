@@ -37,7 +37,7 @@ function buildHeaders(userId: string): Record<string, string> {
 
 // Allowlist of non-idempotent/mutating actions exposed by the proxy.
 export const INVOICING_DOC_ACTIONS = new Set([
-  'from-project', 'from-lead', 'send', 'accept', 'decline', 'mark-paid',
+  'from-project', 'from-lead', 'send', 'accept', 'decline', 'mark-paid', 'revoke-share', 'regenerate-share', 'set-expiry',
 ]);
 
 async function forward(
