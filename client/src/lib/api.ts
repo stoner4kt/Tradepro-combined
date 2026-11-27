@@ -88,6 +88,9 @@ export const resetPassword = (token:string,password:string) => request<{message:
 export const updateProfile = (patch: Record<string, unknown>) =>
   request<{ user: import('../types/api.js').User }>('/auth/profile', { method: 'PATCH', body: JSON.stringify(patch) });
 
+export const deleteMyAccount = (password: string) =>
+  request<void>('/auth/account', { method: 'DELETE', body: JSON.stringify({ password }) });
+
 export async function exportMyData(): Promise<void> {
   const data = await request<Record<string, unknown>>('/auth/export');
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
