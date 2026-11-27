@@ -20,15 +20,15 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { adminClient } from "../_shared/invoicing/supabase.ts";
+import { timingSafeEqual } from "../_shared/security.ts";
 import { buildDocumentEmailHtml } from "../_shared/core/email.ts";
 import { fmtMoney, formatDate } from "../_shared/core/money.ts";
 
 function checkCronSecret(req: Request): boolean {
-  const expected = Deno.env.get("CRON_SECRET");
-  if (!expected) return false; // never open — the schedule is the auth
-  const header = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "") || "";
+  const expected = Deno.env.get("CRON_SECRET") || "";
+  const header = req.headers.get("Authorization")?.replace(/^Bearer\\s+/i, "") || "";
   const apikey = req.headers.get("x-app-apikey") || "";
-  return header === expected || apikey === expected;
+  return expected.length >= 32 && (timingSafeEqual(expected,header) || timingSafeEqual(expected,apikey));
 }
 
 async function sendReminderEmail(doc: DocRow, settings: SettingsRow): Promise<{ status: string; message_id: string | null; error?: string }> {
@@ -54,7 +54,7 @@ async function sendReminderEmail(doc: DocRow, settings: SettingsRow): Promise<{ 
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": `tradepro-invoice-reminder-${doc.id}-${doc.due_date || "undated"}` },
       body: JSON.stringify({
         from,
         to: recipient,
@@ -118,14 +118,10 @@ serve(async (req: Request): Promise<Response> => {
   if (mode === "reminders") {
     // Invoices overdue (due_date < today) that were sent more than grace_days
     // ago and haven't been fully paid.
-    const { data, error } = await admin
-      .from("documents")
-      .select("id,user_id,number,status,token,title,currency,total_minor,subtotal_minor,amount_paid_minor,due_date,customer_snapshot")
-      .eq("kind", "invoice")
-      .in("status", ["issued", "partially_paid", "overdue"])
-      .lt("due_date", today)
-      .or(`sent_at.lt.${cutoff},sent_at.is.null`);
-    if (error) return json({ error: error.message }, 500);
+    const { data, error } = dryRun
+      ? await admin.from("documents").select("id,user_id,number,status,token,title,currency,total_minor,subtotal_minor,amount_paid_minor,due_date,customer_snapshot").eq("kind","invoice").in("status",["issued","partially_paid","overdue"]).lt("due_date",today).or(`sent_at.lt.${cutoff},sent_at.is.null`)
+      : await admin.rpc("claim_due_invoice_reminders",{p_grace_days:graceDays,p_limit:100});
+    if (error) return json({ error: "Unable to claim reminder work" }, 500);
     const docs = (data ?? []) as DocRow[];
 
     // Group by user to resolve settings once per reminder email.
@@ -145,17 +141,44 @@ serve(async (req: Request): Promise<Response> => {
         settings = s as SettingsRow | null;
       } catch { /* keep null */ }
       for (const doc of userDocs) {
-        const result = await sendReminderEmail(doc, settings ?? { business_name: "", email: "", reply_to_email: "", business_email: "" });
-        if (dryRun) continue;
+        if (dryRun) { written.push({document_id:doc.id,number:doc.number,status:"dry_run"}); continue; }
+        let result: {status:string;message_id:string|null;error?:string};
+        try {
+          const hasResend = Boolean(Deno.env.get("RESEND_API_KEY"));
+          if (hasResend) {
+            const publicDb = admin.schema("public");
+            const {data:ownerSettings,error:settingsError} = await publicDb.from("settings").select("daily_email_cap").eq("user_id",userId).maybeSingle();
+            if (settingsError) throw new Error("Unable to verify daily email allowance");
+            const cap = Math.max(1,Math.min(500,Number(ownerSettings?.daily_email_cap||50)));
+            const digest = await crypto.subtle.digest("SHA-256",new TextEncoder().encode("invoice-email:"+userId));
+            const key = Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+            const {data:limitData,error:limitError} = await publicDb.rpc("rate_limit_hit",{p_key:key,p_window_seconds:86400,p_max:cap});
+            const limit = Array.isArray(limitData)?limitData[0]:limitData;
+            if (limitError) throw new Error("Unable to verify daily email allowance");
+            if (!limit?.allowed) {
+              await admin.from("reminder_claims").update({claimed_at:new Date(Date.now()+86400000).toISOString()}).eq("document_id",doc.id).eq("due_date",doc.due_date);
+              result = {status:"deferred",message_id:null,error:"Daily email limit reached; deferred for 24 hours"};
+            } else {
+              result = await sendReminderEmail(doc, settings ?? { business_name: "", email: "", reply_to_email: "", business_email: "" });
+            }
+          } else {
+            result = await sendReminderEmail(doc, settings ?? { business_name: "", email: "", reply_to_email: "", business_email: "" });
+          }
+        } catch (err) { result = {status:"failed",message_id:null,error:(err as Error).message}; }
+        if (result.status === "sent") {
+          await admin.from("reminder_claims").update({sent_at:new Date().toISOString()}).eq("document_id",doc.id).eq("due_date",doc.due_date);
+        } else if (result.status !== "deferred") {
+          await admin.from("reminder_claims").delete().eq("document_id",doc.id).eq("due_date",doc.due_date);
+        }
         const ev = {
           user_id: userId,
           document_id: doc.id,
           kind: "reminder",
           to_email: String((doc.customer_snapshot as Record<string, unknown>).email || ""),
           subject: `Reminder: invoice ${doc.number}`,
-          status: result.status,
+          status: result.status === "deferred" ? "queued" : result.status,
           message_id: result.message_id,
-          meta: result.error ? { error: result.error } : {},
+          meta: result.error ? { error: result.error, deferred: result.status === "deferred" } : {},
         };
         const { error: evErr } = await admin.from("email_events").insert(ev);
         if (evErr) {

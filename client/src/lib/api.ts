@@ -11,26 +11,23 @@ export class ApiError extends Error {
   }
 }
 
-const TOKEN_KEY = 'tradepro_token';
+
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return null;
 }
 
 export function setToken(token: string | null): void {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  void token;
 }
 
 async function request<T>(path: string, options: RequestInit = {}, authed = true): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'X-TradePro': '1',
     ...(options.headers as Record<string, string>),
   };
-  if (authed) {
-    const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
+
 
   // In dev (Vite) we use the same-origin proxy (/api -> localhost:4000).
   // In a production build, VITE_API_URL points at the deployed Worker so the
@@ -42,7 +39,7 @@ async function request<T>(path: string, options: RequestInit = {}, authed = true
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;
   try {
-    res = await fetch(`${base}/api${path}`, { ...options, headers, signal: controller.signal });
+    res = await fetch(`${base}/api${path}`, { ...options, headers, credentials: 'include', signal: controller.signal });
   } catch (err) {
     clearTimeout(timer);
     if (err instanceof DOMException && err.name === 'AbortError') {
@@ -60,6 +57,7 @@ async function request<T>(path: string, options: RequestInit = {}, authed = true
   }
 
   if (!res.ok) {
+    if (res.status === 401 && authed && path !== '/auth/me') window.dispatchEvent(new Event('tradepro:unauthorized'));
     const detail = body as { error?: { message?: string; fields?: Record<string, unknown> } } | undefined;
     throw new ApiError(res.status, detail?.error?.message || `Request failed (${res.status})`, detail?.error?.fields);
   }
@@ -68,25 +66,28 @@ async function request<T>(path: string, options: RequestInit = {}, authed = true
 
 // ---- Auth ----
 export interface AuthResult {
-  token: string;
   user: import('../types/api.js').User;
 }
 
 export const login = (email: string, password: string) =>
-  request<AuthResult>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+  request<AuthResult>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, false);
 
 export const register = (payload: { email: string; password: string; fullName?: string; businessName?: string }) =>
-  request<{ token: string; user: import('../types/api.js').User }>('/auth/register', {
+  request<{ user?: import('../types/api.js').User; message?: string }>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  }, false);
 
 export const me = () => request<{ user: import('../types/api.js').User }>('/auth/me');
+export const logout = () => request<void>('/auth/logout', { method: 'POST' });
+export const verifyEmail = (token: string) => request<{user: import('../types/api.js').User}>('/auth/verify-email',{method:'POST',body:JSON.stringify({token})});
+export const resendVerification = (email:string) => request<{message:string}>('/auth/resend-verification',{method:'POST',body:JSON.stringify({email})},false);
+export const forgotPassword = (email:string) => request<{message:string}>('/auth/forgot-password',{method:'POST',body:JSON.stringify({email})});
+export const resetPassword = (token:string,password:string) => request<{message:string}>('/auth/reset-password',{method:'POST',body:JSON.stringify({token,password})});
 
 export const updateProfile = (patch: Record<string, unknown>) =>
   request<{ user: import('../types/api.js').User }>('/auth/profile', { method: 'PATCH', body: JSON.stringify(patch) });
 
-// ---- Leads ----
 export const listLeads = (params = '') =>
   request<{ leads: import('../types/api.js').Lead[] }>(`/leads${params}`);
 
@@ -251,11 +252,23 @@ export const getInvoicingDocumentContent = (id: string, what: 'pdf' | 'view' | '
 export const listInvoicingPayments = (documentId: string) =>
   request<{ payments: InvoicingPayment[] }>(`/invoicing/payments/${documentId}`);
 
-export const addInvoicingPayment = (documentId: string, payload: Record<string, unknown>) =>
-  request<{ payment: InvoicingPayment }>(`/invoicing/payments/${documentId}`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+const pendingPaymentKeys = new Map<string, string>();
+export async function addInvoicingPayment(documentId: string, payload: Record<string, unknown>) {
+  const supplied = typeof payload.idempotency_key === 'string' ? payload.idempotency_key : '';
+  const key = supplied || pendingPaymentKeys.get(documentId) || crypto.randomUUID();
+  if (!supplied) pendingPaymentKeys.set(documentId, key);
+  try {
+    const result = await request<{ payment: InvoicingPayment; duplicate?: boolean }>(`/invoicing/payments/${documentId}`, {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, idempotency_key: key }),
+    });
+    pendingPaymentKeys.delete(documentId);
+    return result;
+  } catch (error) {
+    // Keep the same key on retry if the response was lost after the DB commit.
+    throw error;
+  }
+}
 
 export const deleteInvoicingPayment = (paymentId: string) =>
   request<{ ok: boolean }>(`/invoicing/payments/${paymentId}`, { method: 'DELETE' });
@@ -268,3 +281,5 @@ export const updateInvoicingSettings = (patch: Record<string, unknown>) =>
 
 export const getInvoicingRevenue = () =>
   request<InvoicingRevenue>('/invoicing/revenue');
+export const exportAccountData = () => request<Record<string, unknown>>('/auth/export');
+export const deleteAccount = (password: string) => request<void>('/auth/account', { method: 'DELETE', body: JSON.stringify({ password }) });

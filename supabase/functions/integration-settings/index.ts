@@ -12,16 +12,17 @@ export function json(data: unknown, status = 200): Response {
   });
 }
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
+import { requireIntegrationSecret, isUuid } from "../_shared/security.ts";
 
-function adminClient(): SupabaseClient {
+function adminClient(): SupabaseClient<any, any> {
  const url=Deno.env.get("SUPABASE_URL"); const key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
  if (!url || !key) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not configured as secrets on this function");
  return createClient(url,key,{db:{schema:"reviewflow"}});
 }
-function checkIntegrationSecret(req: Request): boolean { const expected=Deno.env.get("INTEGRATION_SECRET"); if(!expected)return true; const provided=req.headers.get("x-integration-secret"); return provided!==null && provided===expected; }
-function userIdFromRequest(req: Request): string|null { const raw=req.headers.get("x-user-id"); if(!raw)return null; const id=raw.trim(); return id.length>0 && id.length<=64?id:null; }
+function checkIntegrationSecret(req: Request): boolean { return requireIntegrationSecret(req); }
+function userIdFromRequest(req: Request): string|null { const raw=req.headers.get('x-user-id'); if(!raw)return null; const id=raw.trim(); return isUuid(id)?id:null; }
 interface WidgetOwner { user_id:string; widget_api_key:string; auto_send_enabled:boolean; auto_send_delay_hours:number; }
-async function resolveWidgetOwner(admin: SupabaseClient,widgetKey:string):Promise<WidgetOwner|null>{const {data,error}=await admin.from("settings").select("user_id, widget_api_key, auto_send_enabled, auto_send_delay_hours").eq("widget_api_key",widgetKey).maybeSingle();if(error||!data)return null;return data as unknown as WidgetOwner;}
+async function resolveWidgetOwner(admin: SupabaseClient<any, any>,widgetKey:string):Promise<WidgetOwner|null>{const {data,error}=await admin.from("settings").select("user_id, widget_api_key, auto_send_enabled, auto_send_delay_hours").eq("widget_api_key",widgetKey).maybeSingle();if(error||!data)return null;return data as unknown as WidgetOwner;}
 
 /*
  * integration-settings
@@ -51,6 +52,8 @@ serve(async (req) => {
   if (!userId) return json({ error: "x-user-id header is required" }, 400);
 
   const admin = adminClient();
+  const { data: profile, error: profileError } = await admin.schema("public").from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (profileError || !profile) return json({ error: "Unknown tenant" }, 403);
 
   if (req.method === "GET") {
     const { data: settings, error } = await admin.from("settings").select("*").eq("user_id", userId).maybeSingle();

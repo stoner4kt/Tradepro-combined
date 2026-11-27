@@ -52,6 +52,8 @@ const EMPTY_SETTINGS: InvoicingSettings = {
   next_invoice_number: 1,
   next_quote_number: 1,
   bank_details: '',
+  business_address: '',
+  tax_number: '',
   notes: '',
 };
 
@@ -137,17 +139,7 @@ function DocumentsTable({ docs, onEdit, onDelete, onSend, onNew }: {
                   {d.status === 'draft' ? (
                     <Button variant="ghost" size="sm" onClick={() => onDelete(d)}>Delete</Button>
                   ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={async () => {
-                        if (!window.confirm(`Void ${d.number}?`)) return;
-                        await api.invoicingDocumentAction(d.id, 'decline').catch(() => undefined);
-                        window.location.reload();
-                      }}
-                    >
-                      Void
-                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => onDelete(d)}>Void</Button>
                   )}
                 </span>
               </td>
@@ -204,6 +196,36 @@ function DocumentEditor({ doc, onClose, onSaved }: { doc: InvoicingDocument; onC
   const updateLine = (key: string, patch: Partial<DraftLine>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
+  const duplicateAsDraft = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const res = await api.createInvoicingDocument({
+        kind: doc.kind,
+        external_customer_ref: doc.external_customer_ref,
+        external_project_ref: doc.external_project_ref,
+        external_lead_ref: doc.external_lead_ref,
+        customer_snapshot: doc.customer_snapshot,
+        title: doc.title,
+        notes: doc.notes,
+        currency: doc.currency,
+        due_date: doc.due_date,
+        quote_valid_until: doc.quote_valid_until,
+        lines: (doc.lines || []).map(line => ({
+          description: line.description,
+          quantity: line.quantity,
+          unit_price_minor: line.unit_price_minor,
+        })),
+      });
+      onSaved(res.document);
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const save = async () => {
     setSaving(true);
     setError('');
@@ -230,6 +252,33 @@ function DocumentEditor({ doc, onClose, onSaved }: { doc: InvoicingDocument; onC
       setSaving(false);
     }
   };
+
+  if (doc.status !== 'draft') {
+    return (
+      <Modal title={`${doc.kind === 'quote' ? 'Quote' : 'Invoice'} ${doc.number}`} onClose={onClose}>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-muted">This document is locked after sending and is read-only.</span>
+            {showStatusBadge(doc.status)}
+          </div>
+          <div className="rounded-lg border border-line p-3">
+            <p className="font-semibold text-ink">{doc.title || doc.number}</p>
+            <p className="text-sm text-muted">{doc.customer_snapshot?.name || 'No customer'}</p>
+            <p className="text-sm text-muted">{doc.customer_snapshot?.email || ''}</p>
+            <ul className="mt-3 space-y-2 text-sm">
+              {(doc.lines || []).map(line => <li key={line.id} className="flex justify-between gap-3"><span>{line.description} × {formatLineQuantity(line.quantity)}</span><span>{money(line.quantity * line.unit_price_minor, doc.currency)}</span></li>)}
+            </ul>
+            <p className="mt-3 border-t border-line pt-3 text-right font-semibold">{money(doc.total_minor, doc.currency)}</p>
+          </div>
+          {error ? <Alert tone="error">{error}</Alert> : null}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={onClose}>Close</Button>
+            <Button onClick={() => void duplicateAsDraft()} disabled={saving}>{saving ? 'Duplicating…' : 'Duplicate as new draft'}</Button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal title={`Edit ${doc.kind === 'quote' ? 'quote' : 'invoice'} ${doc.number}`} onClose={onClose}>
@@ -365,6 +414,8 @@ function SettingsForm({ settings, onSaved }: { settings: InvoicingSettings; onSa
         invoice_prefix: form.invoice_prefix,
         quote_prefix: form.quote_prefix,
         bank_details: form.bank_details,
+        business_address: form.business_address,
+        tax_number: form.tax_number,
         notes: form.notes,
       });
       onSaved(res.settings);
@@ -412,6 +463,12 @@ function SettingsForm({ settings, onSaved }: { settings: InvoicingSettings; onSa
           <Input value={form.quote_prefix} onChange={(e) => set('quote_prefix', e.target.value)} />
         </Field>
       </div>
+      <Field label="Business address (shown on shared documents)">
+        <Textarea value={form.business_address} onChange={(e) => set('business_address', e.target.value)} />
+      </Field>
+      <Field label="VAT / tax registration number">
+        <Input value={form.tax_number} onChange={(e) => set('tax_number', e.target.value)} />
+      </Field>
       <Field label="Bank / payment details (shown on invoices)">
         <Textarea value={form.bank_details} onChange={(e) => set('bank_details', e.target.value)} />
       </Field>
@@ -438,6 +495,7 @@ export default function InvoicingPage() {
   const [kindFilter, setKindFilter] = useState<'' | InvoicingKind>('');
   const [statusFilter, setStatusFilter] = useState<'' | InvoicingStatus>('');
   const [editing, setEditing] = useState<InvoicingDocument | null>(null);
+  const [confirmingDoc, setConfirmingDoc] = useState<InvoicingDocument | null>(null);
 
   const enabled = api.isInvoicingEnabled();
 
@@ -490,11 +548,17 @@ export default function InvoicingPage() {
     }
   };
 
-  const deleteDoc = async (d: InvoicingDocument) => {
-    if (!window.confirm(`Delete draft ${d.number}?`)) return;
+  const deleteDoc = (d: InvoicingDocument) => setConfirmingDoc(d);
+
+  const performDelete = async () => {
+    if (!confirmingDoc) return;
+    const target = confirmingDoc;
     try {
-      await api.deleteInvoicingDocument(d.id);
-      setDocs((prev) => prev.filter((x) => x.id !== d.id));
+      await api.deleteInvoicingDocument(target.id);
+      setDocs((prev) => target.status === 'draft'
+        ? prev.filter((x) => x.id !== target.id)
+        : prev.map((x) => x.id === target.id ? { ...x, status: 'void' } : x));
+      setConfirmingDoc(null);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -585,11 +649,27 @@ export default function InvoicingPage() {
         </Card>
       )}
 
+      {confirmingDoc ? (
+        <Modal title={confirmingDoc.status === 'draft' ? 'Delete draft?' : 'Void document?'} onClose={() => setConfirmingDoc(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-muted">
+              {confirmingDoc.status === 'draft'
+                ? `Delete draft ${confirmingDoc.number}? This cannot be undone.`
+                : `Void ${confirmingDoc.number}? It will remain in your records but cannot be paid or edited.`}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setConfirmingDoc(null)}>Cancel</Button>
+              <Button variant="danger" onClick={() => void performDelete()}>{confirmingDoc.status === 'draft' ? 'Delete draft' : 'Void document'}</Button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
       {editing ? (
         <DocumentEditor
           doc={editing}
           onClose={() => setEditing(null)}
-          onSaved={(d) => setDocs((prev) => prev.map((x) => (x.id === d.id ? d : x)))}
+          onSaved={(d) => setDocs((prev) => prev.some((x) => x.id === d.id) ? prev.map((x) => (x.id === d.id ? d : x)) : [d, ...prev])}
         />
       ) : null}
     </div>

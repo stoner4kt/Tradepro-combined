@@ -4,6 +4,8 @@ import { captureSchema } from '../utils/validation.js';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import type { Store } from '../store/Store.js';
 import { config } from '../utils/config.js';
+import { rateLimit } from '../middleware/rateLimit.js';
+import { timingSafeEqual } from 'node:crypto';
 import { logger } from '../utils/logger.js';
 import { sendEmail } from '../services/emailService.js';
 import type { PublicCaptureResult } from '../types/domain.js';
@@ -22,6 +24,7 @@ export function capturesRoutes(store: Store): Router {
 
   router.post(
     '/public',
+    rateLimit({ scope: 'public-capture', windowSeconds: 600, max: 10, failClosed: config.isProduction }),
     asyncHandler(async (req, res) => {
             const parsed = captureSchema.safeParse(req.body);
       if (!parsed.success) return sendError(res, 400, 'Invalid input', parsed.error.flatten().fieldErrors);
@@ -30,12 +33,13 @@ export function capturesRoutes(store: Store): Router {
 
       // Optional shared-secret protection for the capture endpoint.
       if (config.requireCaptureSecret || config.captureSecret) {
-        const provided = String(req.headers['x-capture-secret'] ?? body.businessEmail ?? '');
-        const okSecret = provided === config.captureSecret;
+        const provided = String(req.headers['x-capture-secret'] ?? '');
+        const expected = config.captureSecret;
+        const okSecret = Boolean(expected && provided.length === expected.length && timingSafeEqual(Buffer.from(provided), Buffer.from(expected)));
         if (config.requireCaptureSecret && !okSecret) {
           return sendError(res, 401, 'Invalid capture secret');
         }
-        if (config.captureSecret && !okSecret && !body.businessEmail) {
+        if (config.captureSecret && !okSecret) {
           return sendError(res, 401, 'Capture secret required');
         }
       }

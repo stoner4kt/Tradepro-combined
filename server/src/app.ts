@@ -1,12 +1,16 @@
 import express from 'express';
+import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
+import { timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
-import { config } from './utils/config.js';
+import { config, productionConfigErrors } from './utils/config.js';
 import { logger } from './utils/logger.js';
 import { createFreshStore } from './store/index.js';
 import type { Store } from './store/Store.js';
+import { SupabaseStore } from './store/SupabaseStore.js';
 import { AuthService } from './services/authService.js';
 import { authServiceMiddleware } from './middleware/auth.js';
 import { authRoutes } from './routes/auth.js';
@@ -23,28 +27,91 @@ export function createApp(): express.Express {
   const app = express();
 
   app.disable('x-powered-by');
-  app.use(cors({ origin: config.corsOrigin, credentials: true }));
-  app.use(express.json({ limit: '1mb' }));
+  const startupErrors = productionConfigErrors();
+  if (startupErrors.length) {
+    logger.error('Production configuration invalid', { errors: startupErrors });
+    app.use((_req, res) => res.status(503).json({ error: { message: 'Service temporarily unavailable' } }));
+    return app;
+  }
+  app.use(cors({ origin: config.corsOrigin || false, credentials: true, optionsSuccessStatus: 204, exposedHeaders: ['Retry-After'] }));
+  app.use((req, res, next) => {
+    const requestId = randomUUID();
+    res.locals.requestId = requestId;
+    res.setHeader('X-Request-ID', requestId);
+    if (req.path.startsWith('/api')) res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
+  app.use((req, res, next) => {
+    if (config.nodeEnv === 'test' || ['GET','HEAD','OPTIONS'].includes(req.method)) return next();
+    const origin = req.get('origin') || (req.get('referer') ? new URL(req.get('referer')!).origin : '');
+    if (!config.appOrigin || origin !== config.appOrigin || req.get('content-type')?.split(';')[0] !== 'application/json' || req.get('x-tradepro') !== '1') return res.status(403).json({ error: { message: 'Request origin validation failed' } });
+    next();
+  });
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    if (config.isProduction) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    if (req.path.startsWith('/api')) res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+    next();
+  });
+  app.use(express.json({ limit: '256kb' }));
+  const uuidParams = ['id', 'leadId', 'clientId', 'projectId', 'documentId', 'paymentId'];
+  for (const param of uuidParams) {
+    app.param(param, (req, res, next, value) => {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+        res.status(400).json({ error: { message: 'Invalid resource identifier' } });
+        return;
+      }
+      next();
+    });
+  }
 
   // Health
   app.get('/api/health', (_req, res) => {
-    res.json({
-      ok: true,
-      service: 'tradepro-crm',
-      version: '1.0.0',
-      store: config.supabase.configured ? 'supabase' : 'local',
-      email: config.resend.configured ? 'resend' : 'console',
-      env: {
-        SUPABASE_URL: Boolean(process.env.SUPABASE_URL),
-        SUPABASE_ANON_KEY: Boolean(process.env.SUPABASE_ANON_KEY),
-        SUPABASE_SERVICE_KEY: Boolean(process.env.SUPABASE_SERVICE_KEY),
-        RESEND_API_KEY: Boolean(process.env.RESEND_API_KEY),
-        REVIEWFLOW_URL: Boolean(process.env.REVIEWFLOW_URL),
-        REVIEWFLOW_SECRET: Boolean(process.env.REVIEWFLOW_SECRET),
-        NODE_ENV: process.env.NODE_ENV ?? '(unset)',
-        CORS_ORIGIN: process.env.CORS_ORIGIN ?? '(unset)',
-      },
-    });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ ok: true });
+  });
+
+  app.get('/api/health/deep', async (req, res) => {
+    const expected = config.cronSecret;
+    const provided = req.get('x-cron-secret') || '';
+    const valid = expected.length >= 32 && provided.length === expected.length &&
+      timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+    if (!valid) { res.status(404).json({ error: { message: 'Not found' } }); return; }
+    if (!config.supabase.configured) { res.status(503).json({ ok: false }); return; }
+    try {
+      const { error } = await new SupabaseStore().sb.from('profiles').select('id').limit(1);
+      if (error) throw error;
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ ok: true });
+    } catch (err) {
+      logger.error('Deep health check failed', { error: (err as Error).message });
+      res.status(503).json({ ok: false });
+    }
+  });
+
+  app.get('/api/health/deep', async (req, res) => {
+    const expected = process.env.CRON_SECRET || '';
+    const supplied = req.get('x-cron-secret') || '';
+    if (expected.length < 32 || expected.length !== supplied.length) {
+      return res.status(401).json({ error: { message: 'Unauthorized' } });
+    }
+    let mismatch = 0;
+    for (let i = 0; i < expected.length; i++) mismatch |= expected.charCodeAt(i) ^ supplied.charCodeAt(i);
+    if (mismatch !== 0) return res.status(401).json({ error: { message: 'Unauthorized' } });
+    if (!config.supabase.configured) return res.status(503).json({ error: { message: 'Health check unavailable' } });
+    try {
+      const supabase = createClient(config.supabase.url, config.supabase.serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+      const { error } = await supabase.from('profiles').select('id').limit(1);
+      if (error) throw error;
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json({ ok: true });
+    } catch (err) {
+      logger.warn('Deep health check failed', { error: (err as Error).message });
+      return res.status(503).json({ error: { message: 'Health check unavailable' } });
+    }
   });
 
   // Single store instance shared by auth + all resource routes.
@@ -77,8 +144,9 @@ export function createApp(): express.Express {
 
   // Error handler.
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    logger.error('Unhandled error', { err: err.message, stack: err.stack });
-    res.status(500).json({ error: { message: 'Internal server error' } });
+    const requestId = String(res.locals.requestId || 'unknown');
+    logger.error('Unhandled error', { requestId, err: err.message, stack: err.stack });
+    res.status(500).json({ error: { message: 'Internal server error', requestId } });
   });
 
   return app;

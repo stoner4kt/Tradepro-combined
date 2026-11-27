@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { requireIntegrationSecret, isUuid } from "../_shared/security.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
 export const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -14,26 +15,16 @@ export function json(data: unknown, status = 200): Response {
 }
 
 
-function adminClient(): SupabaseClient {
+function adminClient(): SupabaseClient<any, any> {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not configured as secrets on this function");
   return createClient(url, key, { db: { schema: "reviewflow" } });
 }
 
-function checkIntegrationSecret(req: Request): boolean {
-  const expected = Deno.env.get("INTEGRATION_SECRET");
-  if (!expected) return true;
-  const provided = req.headers.get("x-integration-secret");
-  return provided !== null && provided === expected;
-}
+function checkIntegrationSecret(req: Request): boolean { return requireIntegrationSecret(req); }
 
-function userIdFromRequest(req: Request): string | null {
-  const raw = req.headers.get("x-user-id");
-  if (!raw) return null;
-  const id = raw.trim();
-  return id.length > 0 && id.length <= 64 ? id : null;
-}
+function userIdFromRequest(req: Request): string | null { const raw=req.headers.get("x-user-id"); if(!raw)return null; const id=raw.trim(); return isUuid(id)?id:null; }
 
 interface WidgetOwner {
   user_id: string;
@@ -42,7 +33,7 @@ interface WidgetOwner {
   auto_send_delay_hours: number;
 }
 
-async function resolveWidgetOwner(admin: SupabaseClient, widgetKey: string): Promise<WidgetOwner | null> {
+async function resolveWidgetOwner(admin: SupabaseClient<any, any>, widgetKey: string): Promise<WidgetOwner | null> {
   const { data, error } = await admin.from("settings")
     .select("user_id, widget_api_key, auto_send_enabled, auto_send_delay_hours")
     .eq("widget_api_key", widgetKey).maybeSingle();
@@ -163,7 +154,7 @@ export function resolveTags(value: string, lead: Partial<LeadRow>, settings: Par
 }
 
 export async function sendReviewForLead(
-  admin: SupabaseClient,
+  admin: SupabaseClient<any, any>,
   leadId: string,
   userId: string,
   trigger: "auto" | "manual",
@@ -177,6 +168,15 @@ export async function sendReviewForLead(
   const s = settings as unknown as SettingsRow;
   const leadRow = lead as unknown as LeadRow;
 
+  const { data: optedOut, error: optOutError } = await admin.schema("public").from("email_opt_outs")
+    .select("id").eq("user_id", userId).eq("email", leadRow.email.toLowerCase()).maybeSingle();
+  if (optOutError) return { ok: false, status: 503, body: { error: "Unable to verify recipient preferences" } };
+  if (optedOut) return { ok: false, status: 409, body: { error: "Recipient has opted out" } };
+
+  let reviewUrl: URL;
+  try { reviewUrl = new URL(s.google_review_url); } catch { return { ok: false, status: 400, body: { error: "Review URL must be HTTPS" } }; }
+  if (reviewUrl.protocol !== "https:") return { ok: false, status: 400, body: { error: "Review URL must be HTTPS" } };
+
   const subject = resolveTags(String(s.email_subject_template || ""), leadRow, s);
   const intro = resolveTags(String(s.email_intro_text || ""), leadRow, s);
   const html = buildEmailHtml({
@@ -184,7 +184,7 @@ export async function sendReviewForLead(
     firstName: leadRow.first_name,
     introText: intro,
     buttonText: s.email_button_text,
-    reviewUrl: s.google_review_url,
+    reviewUrl: reviewUrl.toString(),
     brandColor: s.email_brand_color,
   });
 
@@ -196,15 +196,41 @@ export async function sendReviewForLead(
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
   if (!resendApiKey) return { ok: false, status: 500, body: { error: "RESEND_API_KEY is not configured" } };
 
+  const rawUnsubscribe = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, "0")).join("");
+  const unsubscribeDigest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rawUnsubscribe));
+  const unsubscribeHash = Array.from(new Uint8Array(unsubscribeDigest), b => b.toString(16).padStart(2, "0")).join("");
+  const { error: tokenError } = await admin.schema("public").from("email_opt_out_tokens").insert({
+    user_id: userId, email: leadRow.email.toLowerCase(), token_hash: unsubscribeHash,
+    expires_at: new Date(Date.now() + 180 * 86400000).toISOString(),
+  });
+  if (tokenError) return { ok: false, status: 500, body: { error: "Unable to prepare unsubscribe link" } };
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const unsubscribeUrl = supabaseUrl.replace(/\/+$/, "") + "/functions/v1/reviewflow-unsubscribe?token=" + encodeURIComponent(rawUnsubscribe);
+  const emailHtml = html + '<p><a href="' + unsubscribeUrl + '">Unsubscribe from review-request emails</a></p>';
+
+  const { data: ownerSettings, error: ownerSettingsError } = await admin.schema("public").from("settings")
+    .select("daily_email_cap").eq("user_id", userId).maybeSingle();
+  if (ownerSettingsError) return { ok: false, status: 503, body: { error: "Unable to verify daily email allowance" } };
+  const cap = Math.max(1, Math.min(500, Number(ownerSettings?.daily_email_cap || 50)));
+  const keyDigest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("review-email:" + userId));
+  const rateKey = Array.from(new Uint8Array(keyDigest), b => b.toString(16).padStart(2, "0")).join("");
+  const { data: limitData, error: limitError } = await admin.schema("public").rpc("rate_limit_hit", {
+    p_key: rateKey, p_window_seconds: 86400, p_max: cap,
+  });
+  const limit = Array.isArray(limitData) ? limitData[0] : limitData;
+  if (limitError) return { ok: false, status: 503, body: { error: "Unable to verify daily email allowance" } };
+  if (!limit?.allowed) return { ok: false, status: 429, body: { error: "Daily review email limit reached" } };
+
   const resendRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+    headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json", "Idempotency-Key": "tradepro-review-" + leadRow.id },
     body: JSON.stringify({
       from: s.review_from_name ? `${s.review_from_name} <${fromEmail}>` : fromEmail,
       to: [leadRow.email],
       reply_to: s.review_reply_to_email || undefined,
       subject,
-      html,
+      html: emailHtml,
+      headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
     }),
   });
   const resendData = await resendRes.json().catch(() => ({}));
@@ -268,6 +294,8 @@ serve(async (req) => {
   if (!userId) return json({ error: "x-user-id header is required" }, 400);
 
   const admin = adminClient();
+  const { data: profile, error: profileError } = await admin.schema("public").from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (profileError || !profile) return json({ error: "Unknown tenant" }, 403);
 
   const url = new URL(req.url);
   // Path: /functions/v1/integration-lead[/{id}[/send-review]]

@@ -1,0 +1,79 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main, hardening/go-live]
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run typecheck:worker -w server
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Check Supabase Edge Functions
+        run: find supabase/functions -mindepth 2 -maxdepth 2 -name index.ts -not -path '*/_shared/*' -print0 | xargs -0 -n1 deno check
+      - name: Test Svix webhook signatures
+        run: deno test supabase/functions/invoicing-resend-webhook/svix.test.ts
+      - name: Audit all dependencies
+        run: npm audit
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Audit all dependencies
+        run: npm audit
+
+  supabase-migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase stack
+        run: supabase start --exclude studio,mailpit,edge-runtime
+      - name: Apply all migrations from a clean database
+        run: supabase db reset
+      - name: Run tenant privilege and RLS diagnostics
+        shell: bash
+        run: |
+          DB_URL="$(supabase status -o env | grep '^DB_URL=' | cut -d '=' -f2- | tr -d '"')"
+          test -n "$DB_URL"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -At -f supabase/tests/security_checks.sql > /tmp/security-checks.txt
+          if [[ -s /tmp/security-checks.txt ]]; then
+            cat /tmp/security-checks.txt
+            echo "Security diagnostics returned findings." >&2
+            exit 1
+          fi
+          echo "Security diagnostics passed with zero findings."

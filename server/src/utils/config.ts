@@ -32,9 +32,13 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   isProduction: process.env.NODE_ENV === 'production',
 
-  corsOrigin: process.env.CORS_ORIGIN || '*',
+  corsOrigin: process.env.CORS_ORIGIN || '',
+  appOrigin: process.env.APP_ORIGIN || '',
+  apiOrigin: process.env.API_ORIGIN || '',
+  cookieDomain: process.env.COOKIE_DOMAIN || '',
+  cronSecret: process.env.CRON_SECRET || '',
 
-  jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-me-in-production',
+  jwtSecret: process.env.JWT_SECRET || '',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
 
   supabase: {
@@ -63,10 +67,10 @@ export const config = {
   // INTEGRATION_SECRET env is accepted as an alias.
   reviewflow: {
     // The Supabase project URL — edge functions live under /functions/v1.
-    url: process.env.REVIEWFLOW_URL || process.env.REVIEWFLOW_SUPABASE_URL || '',
+    url: process.env.REVIEWFLOW_URL || process.env.REVIEWFLOW_SUPABASE_URL || process.env.SUPABASE_URL || '',
     secret: process.env.REVIEWFLOW_SECRET || process.env.INTEGRATION_SECRET || '',
     // Feature flag — outbound notifications only fire when a URL + secret are set.
-    enabled: Boolean(process.env.REVIEWFLOW_URL && (process.env.REVIEWFLOW_SECRET || process.env.INTEGRATION_SECRET)),
+    enabled: Boolean((process.env.REVIEWFLOW_URL || process.env.REVIEWFLOW_SUPABASE_URL || process.env.SUPABASE_URL) && (process.env.REVIEWFLOW_SECRET || process.env.INTEGRATION_SECRET)),
     // Send review email automatically when a CRM project is completed.
     autoSend: bool(process.env.REVIEWFLOW_AUTO_SEND, true),
   },
@@ -107,4 +111,47 @@ export function loadSecretsHelpText(): string {
 export function ensureDataDir(): void {
   const dir = process.env.DATA_DIR || path.join(process.cwd(), '.data');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+/** Production must fail closed rather than boot with development credentials. */
+export function productionConfigErrors(): string[] {
+  if (!config.isProduction) return [];
+  const required = [
+    'JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY',
+    'SUPABASE_ANON_KEY', 'CORS_ORIGIN', 'APP_ORIGIN', 'API_ORIGIN', 'INTEGRATION_SECRET', 'RESEND_API_KEY', 'RESEND_FROM_EMAIL',
+    'CRON_SECRET', 'COOKIE_DOMAIN',
+  ];
+  const missing = required.filter((key) => !process.env[key]?.trim());
+  const errors = missing.map((key) => `Missing required environment variable: ${key}`);
+  const integrationSecret = process.env.INTEGRATION_SECRET || '';
+  if (process.env.ALLOW_BEARER_AUTH === 'true') errors.push('ALLOW_BEARER_AUTH must be false in production');
+  if (integrationSecret.length < 32) errors.push('INTEGRATION_SECRET must be at least 32 characters');
+  if ((process.env.CRON_SECRET || '').length < 32) errors.push('CRON_SECRET must be at least 32 characters');
+  if (process.env.INVOICING_URL && (process.env.INVOICING_SECRET || '').length < 32) errors.push('INVOICING_SECRET must be at least 32 characters when Invoicing is enabled');
+  if (process.env.INVOICING_URL && (process.env.SV_API_KEY || '').length < 32) errors.push('SV_API_KEY must be at least 32 characters when Invoicing is enabled');
+  if (!(process.env.RESEND_WEBHOOK_SECRET || '').startsWith('whsec_')) errors.push('RESEND_WEBHOOK_SECRET must be a Resend Svix signing secret');
+  const secret = process.env.JWT_SECRET || '';
+  if (secret.length < 32 || secret === 'dev-secret-change-me-in-production') {
+    errors.push('JWT_SECRET must be at least 32 characters and not a development default');
+  }
+  const origin = process.env.CORS_ORIGIN || '';
+  try {
+    const parsed = new URL(origin);
+    if (parsed.protocol !== 'https:' || parsed.origin !== origin || origin === '*') {
+      errors.push('CORS_ORIGIN must be one exact HTTPS origin');
+    }
+  } catch {
+    errors.push('CORS_ORIGIN must be one exact HTTPS origin');
+  }
+  const appOrigin = process.env.APP_ORIGIN || '';
+  if (origin !== appOrigin) errors.push('CORS_ORIGIN must match APP_ORIGIN');
+  const apiOrigin = process.env.API_ORIGIN || '';
+  const cookieDomain = process.env.COOKIE_DOMAIN || '';
+  try { const parsed = new URL(appOrigin); if (parsed.protocol !== 'https:' || parsed.origin !== appOrigin) errors.push('APP_ORIGIN must be one exact HTTPS origin'); } catch { errors.push('APP_ORIGIN must be one exact HTTPS origin'); }
+  try { const api = new URL(apiOrigin); const app = new URL(appOrigin); const cookieHost = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain; const covered = (host: string) => Boolean(cookieHost) && (host === cookieHost || host.endsWith('.' + cookieHost)); if (api.protocol !== 'https:' || api.origin !== apiOrigin || !covered(app.hostname) || !covered(api.hostname)) errors.push('APP_ORIGIN and API_ORIGIN must be HTTPS hosts covered by COOKIE_DOMAIN'); } catch { errors.push('API_ORIGIN must be one exact HTTPS origin'); }
+  if ((process.env.RESEND_FROM_EMAIL || '').toLowerCase().includes('@resend.dev')) errors.push('RESEND_FROM_EMAIL must use your verified sending domain');
+  if (process.env.RESEND_API_KEY && !process.env.RESEND_WEBHOOK_SECRET) {
+    errors.push('RESEND_WEBHOOK_SECRET is required when Resend is enabled');
+  }
+  return errors;
 }

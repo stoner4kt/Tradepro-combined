@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
+import { requireIntegrationSecret, isUuid } from "../_shared/security.ts";
 export const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "content-type, authorization, x-widget-key, x-integration-secret, x-internal-call, x-user-id",
@@ -9,30 +10,25 @@ export const CORS = {
 export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...CORS, "Content-Type": "application/json" },
+    headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 }
 
 
-function adminClient(): SupabaseClient {
+function adminClient(): SupabaseClient<any, any> {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not configured as secrets on this function");
   return createClient(url, key, { db: { schema: "reviewflow" } });
 }
 
-function checkIntegrationSecret(req: Request): boolean {
-  const expected = Deno.env.get("INTEGRATION_SECRET");
-  if (!expected) return true;
-  const provided = req.headers.get("x-integration-secret");
-  return provided !== null && provided === expected;
-}
+function checkIntegrationSecret(req: Request): boolean { return requireIntegrationSecret(req); }
 
 function userIdFromRequest(req: Request): string | null {
   const raw = req.headers.get("x-user-id");
   if (!raw) return null;
   const id = raw.trim();
-  return id.length > 0 && id.length <= 64 ? id : null;
+  return isUuid(id) ? id : null;
 }
 
 interface WidgetOwner {
@@ -42,7 +38,7 @@ interface WidgetOwner {
   auto_send_delay_hours: number;
 }
 
-async function resolveWidgetOwner(admin: SupabaseClient, widgetKey: string): Promise<WidgetOwner | null> {
+async function resolveWidgetOwner(admin: SupabaseClient<any, any>, widgetKey: string): Promise<WidgetOwner | null> {
   const { data, error } = await admin.from("settings")
     .select("user_id, widget_api_key, auto_send_enabled, auto_send_delay_hours")
     .eq("widget_api_key", widgetKey).maybeSingle();
@@ -163,7 +159,7 @@ export function resolveTags(value: string, lead: Partial<LeadRow>, settings: Par
 }
 
 export async function sendReviewForLead(
-  admin: SupabaseClient,
+  admin: SupabaseClient<any, any>,
   leadId: string,
   userId: string,
   trigger: "auto" | "manual",
@@ -176,6 +172,15 @@ export async function sendReviewForLead(
   if (!settings) return { ok: false, status: 500, body: { error: "Settings not configured" } };
   const s = settings as unknown as SettingsRow;
   const leadRow = lead as unknown as LeadRow;
+  if(leadRow.status !== 'complete')return {ok:false,status:409,body:{error:'Lead is not eligible for a review request'}};
+
+  const {data:optOut,error:optOutError}=await admin.schema("public").from("email_opt_outs").select("id").eq("user_id",userId).eq("email",leadRow.email.toLowerCase()).maybeSingle();
+  if(optOutError)return {ok:false,status:503,body:{error:'Unable to verify recipient preferences'}};
+  if(optOut)return {ok:false,status:409,body:{error:"Recipient has opted out"}};
+
+  let reviewUrl: URL;
+  try { reviewUrl = new URL(s.google_review_url); } catch { return { ok: false, status: 400, body: { error: "Review URL must be HTTPS" } }; }
+  if (reviewUrl.protocol !== "https:") return { ok: false, status: 400, body: { error: "Review URL must be HTTPS" } };
 
   const subject = resolveTags(String(s.email_subject_template || ""), leadRow, s);
   const intro = resolveTags(String(s.email_intro_text || ""), leadRow, s);
@@ -184,10 +189,19 @@ export async function sendReviewForLead(
     firstName: leadRow.first_name,
     introText: intro,
     buttonText: s.email_button_text,
-    reviewUrl: s.google_review_url,
+    reviewUrl: reviewUrl.toString(),
     brandColor: s.email_brand_color,
   });
 
+  const unsubscribeBytes=crypto.getRandomValues(new Uint8Array(32));
+  const unsubscribeToken=Array.from(unsubscribeBytes,b=>b.toString(16).padStart(2,"0")).join("");
+  const unsubscribeDigest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(unsubscribeToken));
+  const unsubscribeHash=Array.from(new Uint8Array(unsubscribeDigest),b=>b.toString(16).padStart(2,"0")).join("");
+  const {error:unsubscribeError}=await admin.schema("public").from("email_opt_out_tokens").insert({user_id:userId,email:leadRow.email.toLowerCase(),token_hash:unsubscribeHash,expires_at:new Date(Date.now()+180*86400000).toISOString()});
+  if(unsubscribeError)return {ok:false,status:500,body:{error:"Unable to prepare unsubscribe link"}};
+  const supabaseUrl=Deno.env.get("SUPABASE_URL")||"";
+  const unsubscribeUrl=supabaseUrl.replace(/\/+$/,"")+"/functions/v1/reviewflow-unsubscribe?token="+encodeURIComponent(unsubscribeToken);
+  const emailHtml=html+'<p style="font-size:12px;color:#64748b;text-align:center;margin-top:24px"><a href="'+unsubscribeUrl+'">Unsubscribe from review-request emails</a></p>';
   const fromEmail = String(s.review_from_email || "");
   if (!fromEmail) {
     return { ok: false, status: 400, body: { error: "review_from_email is not configured. Verify a sender domain in Resend first." } };
@@ -196,15 +210,22 @@ export async function sendReviewForLead(
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
   if (!resendApiKey) return { ok: false, status: 500, body: { error: "RESEND_API_KEY is not configured" } };
 
+  const {data:ownerSettings}=await admin.schema("public").from("settings").select("daily_email_cap").eq("user_id",userId).maybeSingle();
+  const dailyCap=Math.max(1,Math.min(500,Number(ownerSettings?.daily_email_cap||50)));
+  const {data:limitRows,error:limitError}=await admin.schema("public").rpc("rate_limit_hit",{p_key:`review-email:${userId}`,p_window_seconds:86400,p_max:dailyCap});
+  const limit=Array.isArray(limitRows)?limitRows[0]:limitRows;
+  if(limitError || !limit?.allowed)return {ok:false,status:429,body:{error:"Daily review email limit reached"}};
+
   const resendRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+    headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json", "Idempotency-Key": "tradepro-review-" + leadRow.id },
     body: JSON.stringify({
       from: s.review_from_name ? `${s.review_from_name} <${fromEmail}>` : fromEmail,
       to: [leadRow.email],
       reply_to: s.review_reply_to_email || undefined,
       subject,
-      html,
+      html: emailHtml,
+      headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
     }),
   });
   const resendData = await resendRes.json().catch(() => ({}));
@@ -213,7 +234,7 @@ export async function sendReviewForLead(
   }
 
   const recipient = `${leadRow.first_name || ""} ${leadRow.last_name || ""}`.trim() || undefined;
-  await admin.from("review_requests").insert({
+  const {error:logError}=await admin.from("review_requests").insert({
     user_id:           userId,
     lead_id:           leadRow.id,
     recipient_email:   leadRow.email,
@@ -223,11 +244,13 @@ export async function sendReviewForLead(
     status:            "sent",
     triggered_by:      trigger,
   });
+  if(logError && logError.code !== '23505')return {ok:false,status:500,body:{error:"Email sent but delivery record could not be saved; retry is safe"}};
 
-  await admin.from("leads").update({
-    status:     "review_sent",
+  const {error:updateError}=await admin.from("leads").update({
+    status: "review_sent", review_sent_at: new Date().toISOString(), review_send_claimed_at: null,
     updated_at: new Date().toISOString(),
-  }).eq("id", leadRow.id);
+  }).eq("id", leadRow.id).eq("user_id",userId);
+  if(updateError)return {ok:false,status:500,body:{error:"Email sent but lead status could not be updated; retry is safe"}};
 
   return { ok: true, status: 200, body: { success: true, message_id: (resendData as { id?: string }).id } };
 }
@@ -248,18 +271,36 @@ serve(async (req) => {
 
   if (!checkIntegrationSecret(req)) return json({ error: "Unauthorized" }, 401);
 
-  const userId = userIdFromRequest(req);
-  if (!userId) return json({ error: "x-user-id header is required" }, 400);
-
   let body: Record<string, unknown>;
   try { body = await req.json(); }
   catch { return json({ error: "Invalid JSON" }, 400); }
 
+  const admin = adminClient();
+  if (body.mode === "scheduled") {
+    const {data:due,error}=await admin.rpc("claim_due_review_emails",{p_limit:20});
+    if(error)return json({error:"Unable to claim scheduled reviews"},500);
+    let sent=0,failed=0;
+    for(const lead of (due||[]) as LeadRow[]){
+      const result=await sendReviewForLead(admin,lead.id,lead.user_id,"auto");
+      if(result.ok)sent++;
+      else {
+        failed++;
+        const release:Record<string,unknown>={review_send_claimed_at:null};
+        if(result.status===409)release.review_send_after=null;
+        if(result.status===429)release.review_send_after=new Date(Date.now()+86400000).toISOString();
+        await admin.from("leads").update(release).eq("id",lead.id).eq("user_id",lead.user_id);
+      }
+    }
+    return json({ok:true,claimed:(due||[]).length,sent,failed});
+  }
+
+  const userId = userIdFromRequest(req);
+  if (!userId) return json({ error: "x-user-id header is required" }, 400);
+  const { data: profile, error: profileError } = await admin.schema("public").from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (profileError || !profile) return json({ error: "Unknown tenant" }, 403);
   const email = String(body.email || "").toLowerCase().trim();
   const externalId = body.external_id ? String(body.external_id).trim() : null;
   if (!email && !externalId) return json({ error: "email or external_id is required" }, 400);
-
-  const admin = adminClient();
 
   let query = admin.from("leads").select("*").eq("email", email).eq("user_id", userId).limit(1);
   if (externalId) query = admin.from("leads").select("*").eq("external_id", externalId).eq("user_id", userId).limit(1);

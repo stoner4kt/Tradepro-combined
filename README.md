@@ -15,7 +15,15 @@ system on a **single Supabase project**.
   dashboard / same login** via the `/api/invoicing/*` proxy. Standalone
   share pages for unlocked documents are served by `invoicing-public`.
 
-See **[SETUP-GUIDE.md](./SETUP-GUIDE.md)** for the exact deployment steps.
+See **[SETUP-GUIDE.md](./SETUP-GUIDE.md)** for setup and **[docs/GO-LIVE.md](./docs/GO-LIVE.md)** for the staged launch checklist. The `hardening/go-live` branch is a review candidate; do not deploy its migrations until staging verification is complete.
+
+## Security model (hardening branch)
+
+- Browser sessions use an HttpOnly cookie; the dashboard sends credentialed JSON requests with `X-TradePro` and an exact `APP_ORIGIN` CSRF check. Production bearer tokens are disabled.
+- Authentication tokens, Postgres-backed rate limits, email opt-outs and scheduled claims are stored in Postgres. Auth endpoints fail closed when the limiter is unavailable; other limits follow their documented policy.
+- Cloudflare Cron runs review claims every 5 minutes, invoice reminder/overdue work every 15 minutes, and daily cleanup/deep health at 03:00 UTC.
+- Apply new migrations `0007`–`0015` in order in staging only. See `docs/HARDENING-PR.md` for implementation status and unverified items.
+- Deploy edge functions with `npm run deploy:functions`; use `bash scripts/smoke-functions.sh` against staging to detect accidental Supabase JWT gateway enforcement.
 
 ## Repository layout
 
@@ -232,3 +240,9 @@ No real secrets are committed — all values are placeholders in
 
 Private/internal product code. (This repository merges two existing private
 product codebases; no public license is granted.)
+
+## Go-live security hardening
+
+The review branch `hardening/go-live` adds HttpOnly cookie sessions with origin/header CSRF checks, email verification and password recovery, Postgres-backed rate limits, scoped privileged RPCs, atomic invoicing payments and reminder claims, scheduled ReviewFlow sending, Svix webhook verification, widget origin/consent controls, unsubscribe handling, public JSON share pages, and CI security checks.
+
+See [the implementation report](docs/HARDENING-PR.md) and [the staging go-live checklist](docs/GO-LIVE.md). These migrations and Worker changes must be tested in a disposable Supabase/Cloudflare staging environment before production; the branch does not deploy or mutate live services.

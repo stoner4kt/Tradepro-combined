@@ -6,7 +6,7 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (input: { email: string; password: string; fullName?: string; businessName?: string }) => Promise<void>;
+  register: (input: { email: string; password: string; fullName?: string; businessName?: string }) => Promise<boolean>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -22,34 +22,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { user } = await api.me();
       setUser(user);
     } catch {
-      api.setToken(null);
       setUser(null);
     }
   }, []);
 
   useEffect(() => {
-    if (!api.getToken()) {
-      setLoading(false);
-      return;
-    }
+    try { window.localStorage.removeItem('tradepro_token'); } catch { /* storage may be unavailable */ }
     void refreshUser().finally(() => setLoading(false));
   }, [refreshUser]);
 
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setUser(null);
+      if (window.location.pathname !== '/login') window.location.assign('/login?reason=expired');
+    };
+    window.addEventListener('tradepro:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('tradepro:unauthorized', onUnauthorized);
+  }, []);
+
+
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.login(email, password);
-    api.setToken(res.token);
     setUser(res.user);
   }, []);
 
   const register = useCallback(async (input: { email: string; password: string; fullName?: string; businessName?: string }) => {
     const res = await api.register(input);
-    api.setToken(res.token);
-    setUser(res.user);
+    if (res.user) setUser(res.user);
+    return Boolean(res.user);
   }, []);
 
   const logout = useCallback(() => {
-    api.setToken(null);
-    setUser(null);
+    void api.logout().finally(() => setUser(null));
   }, []);
 
   const value = useMemo(

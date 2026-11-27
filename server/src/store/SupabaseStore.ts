@@ -39,7 +39,7 @@ const CAPTURE_COLUMNS =
 const LOG_COLUMNS =
   'id,user_id,lead_id,client_id,to_email,subject,template,status,provider,sent_at';
 const SETTINGS_COLUMNS =
-  'id,user_id,business_name,business_type,reply_to_email,currency,email_notifications,created_at,updated_at';
+  'id,user_id,business_name,business_type,reply_to_email,currency,email_notifications,allowed_origins,daily_email_cap,created_at,updated_at';
 
 // ---------------------------------------------------------------------------
 // SupabaseStore — production data layer on top of Supabase REST + Supabase
@@ -124,7 +124,7 @@ export class SupabaseStore implements Store {
       .from('profiles')
       .update(body)
       .eq('id', id)
-      .select(CLIENT_COLUMNS)
+      .select('id,full_name,business_name,business_type,phone,email,created_at,updated_at')
       .maybeSingle();
     if (error) throw new Error(`updateProfile failed: ${error.message}`);
     return data ? mapProfile(data) : null;
@@ -216,9 +216,9 @@ export class SupabaseStore implements Store {
 
   async deleteLead(userId: string, leadId: string): Promise<boolean> {
     this.assertSet();
-    const { error } = await this.sb.from('leads').delete().eq('id', leadId).eq('user_id', userId);
+    const { data, error } = await this.sb.from('leads').delete().eq('id', leadId).eq('user_id', userId).select('id').maybeSingle();
     if (error) throw new Error(`deleteLead failed: ${error.message}`);
-    return true;
+    return Boolean(data);
   }
 
   // ---- Clients ------------------------------------------------------------
@@ -298,9 +298,9 @@ export class SupabaseStore implements Store {
 
   async deleteClient(userId: string, clientId: string): Promise<boolean> {
     this.assertSet();
-    const { error } = await this.sb.from('clients').delete().eq('id', clientId).eq('user_id', userId);
+    const { data, error } = await this.sb.from('clients').delete().eq('id', clientId).eq('user_id', userId).select('id').maybeSingle();
     if (error) throw new Error(`deleteClient failed: ${error.message}`);
-    return true;
+    return Boolean(data);
   }
 
   // ---- Projects -----------------------------------------------------------
@@ -309,29 +309,39 @@ export class SupabaseStore implements Store {
     this.assertSet();
     let q = this.sb
       .from('projects')
-      .select(`${PROJECT_COLUMNS}, clients(first_name,last_name,email), leads(email)`)
+      .select(PROJECT_COLUMNS)
       .eq('user_id', userId);
     if (filters.status) q = q.eq('status', filters.status);
     if (filters.clientId) q = q.eq('client_id', filters.clientId);
     const { data, error } = await q.order('updated_at', { ascending: false });
     if (error) throw new Error(`listProjects failed: ${error.message}`);
-    return (data ?? []).map((d) => mapProject(d));
+    return Promise.all((data ?? []).map(async (d) => {
+      const project = mapProject(d);
+      const client = await this.getClient(userId, project.clientId);
+      const lead = project.leadId ? await this.getLead(userId, project.leadId) : null;
+      return { ...project, clientName: client ? [client.firstName,client.lastName].filter(Boolean).join(' ') : '', clientEmail: client?.email || '', leadEmail: lead?.email || '' };
+    }));
   }
 
   async getProject(userId: string, projectId: string): Promise<Project | null> {
     this.assertSet();
     const { data, error } = await this.sb
       .from('projects')
-      .select(`${PROJECT_COLUMNS}, clients(first_name,last_name,email), leads(email)`)
+      .select(PROJECT_COLUMNS)
       .eq('id', projectId)
       .eq('user_id', userId)
       .maybeSingle();
-    if (error) return null;
-    return data ? mapProject(data) : null;
+    if (error || !data) return null;
+    const project = mapProject(data);
+    const client = await this.getClient(userId, project.clientId);
+    const lead = project.leadId ? await this.getLead(userId, project.leadId) : null;
+    return { ...project, clientName: client ? [client.firstName,client.lastName].filter(Boolean).join(' ') : '', clientEmail: client?.email || '', leadEmail: lead?.email || '' };
   }
 
   async createProject(userId: string, input: NewProjectInput): Promise<Project> {
     this.assertSet();
+    if (!(await this.getClient(userId, input.clientId))) throw new Error('Project client not found');
+    if (input.leadId && !(await this.getLead(userId, input.leadId))) throw new Error('Project lead not found');
     const { data, error } = await this.sb
       .from('projects')
       .insert({
@@ -348,10 +358,13 @@ export class SupabaseStore implements Store {
         est_value: input.estValue ?? 0,
         notes: input.notes ?? '',
       })
-      .select(`${PROJECT_COLUMNS}, clients(first_name,last_name,email), leads(email)`)
+      .select(PROJECT_COLUMNS)
       .single();
     if (error) throw new Error(`createProject failed: ${error.message}`);
-    return mapProject(data);
+    const project = mapProject(data);
+    const client = await this.getClient(userId, project.clientId);
+    const lead = project.leadId ? await this.getLead(userId, project.leadId) : null;
+    return { ...project, clientName: client ? [client.firstName,client.lastName].filter(Boolean).join(' ') : '', clientEmail: client?.email || '', leadEmail: lead?.email || '' };
   }
 
   async updateProject(
@@ -360,6 +373,8 @@ export class SupabaseStore implements Store {
     patch: Partial<NewProjectInput>,
   ): Promise<Project | null> {
     this.assertSet();
+    if (patch.clientId !== undefined && !(await this.getClient(userId, patch.clientId))) return null;
+    if (patch.leadId && !(await this.getLead(userId, patch.leadId))) return null;
     const body: Record<string, unknown> = {};
     if (patch.clientId !== undefined) body.client_id = patch.clientId;
     if (patch.leadId !== undefined) body.lead_id = patch.leadId ?? null;
@@ -378,17 +393,21 @@ export class SupabaseStore implements Store {
       .update(body)
       .eq('id', projectId)
       .eq('user_id', userId)
-      .select(`${PROJECT_COLUMNS}, clients(first_name,last_name,email), leads(email)`)
+      .select(PROJECT_COLUMNS)
       .maybeSingle();
     if (error) throw new Error(`updateProject failed: ${error.message}`);
-    return data ? mapProject(data) : null;
+    if (!data) return null;
+    const project = mapProject(data);
+    const client = await this.getClient(userId, project.clientId);
+    const lead = project.leadId ? await this.getLead(userId, project.leadId) : null;
+    return { ...project, clientName: client ? [client.firstName,client.lastName].filter(Boolean).join(' ') : '', clientEmail: client?.email || '', leadEmail: lead?.email || '' };
   }
 
   async deleteProject(userId: string, projectId: string): Promise<boolean> {
     this.assertSet();
-    const { error } = await this.sb.from('projects').delete().eq('id', projectId).eq('user_id', userId);
+    const { data, error } = await this.sb.from('projects').delete().eq('id', projectId).eq('user_id', userId).select('id').maybeSingle();
     if (error) throw new Error(`deleteProject failed: ${error.message}`);
-    return true;
+    return Boolean(data);
   }
 
   // ---- Settings -----------------------------------------------------------
@@ -412,6 +431,8 @@ export class SupabaseStore implements Store {
     if (patch.replyToEmail !== undefined) body.reply_to_email = patch.replyToEmail;
     if (patch.currency !== undefined) body.currency = patch.currency;
     if (patch.emailNotifications !== undefined) body.email_notifications = patch.emailNotifications;
+    if (patch.allowedOrigins !== undefined) body.allowed_origins = patch.allowedOrigins;
+    if (patch.dailyEmailCap !== undefined) body.daily_email_cap = patch.dailyEmailCap;
 
     const { data, error } = await this.sb
       .from('settings')
@@ -501,7 +522,7 @@ export class SupabaseStore implements Store {
 
   async convertLeadToClient(userId: string, leadId: string): Promise<{ clientId: string; projectId: string }> {
     this.assertSet();
-    const { data, error } = await this.sb.rpc('convert_lead_to_client', { p_lead_id: leadId });
+    const { data, error } = await this.sb.rpc('convert_lead_to_client', { p_user_id: userId, p_lead_id: leadId });
     if (error) throw new Error(`convertLeadToClient failed: ${error.message}`);
     const row = Array.isArray(data) ? data[0] : data;
     return { clientId: row?.client_id as string, projectId: row?.project_id as string };
@@ -631,6 +652,8 @@ function mapSettings(row: Record<string, unknown>): Settings {
     replyToEmail: String(row.reply_to_email ?? ''),
     currency: String(row.currency ?? 'USD'),
     emailNotifications: Boolean(row.email_notifications ?? true),
+    allowedOrigins: Array.isArray(row.allowed_origins) ? row.allowed_origins as string[] : [],
+    dailyEmailCap: Number(row.daily_email_cap ?? 50),
     createdAt: String(row.created_at ?? ''),
     updatedAt: String(row.updated_at ?? ''),
   };

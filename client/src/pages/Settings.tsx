@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import type { Settings } from '../types/api.js';
-import { Alert, Button, Card, Field, Input, PageHeader, Select, Spinner } from '../components/ui.js';
+import { Alert, Button, Card, Field, Input, PageHeader, Select, Spinner, Textarea } from '../components/ui.js';
 import { useAuth } from '../contexts/AuthContext.js';
+import { Link } from 'react-router-dom';
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
@@ -10,6 +11,8 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   useEffect(() => {
     void api.getSettings().then((r) => setSettings(r.settings)).catch((e) => setError(e instanceof Error ? e.message : 'Failed to load settings'));
@@ -51,6 +54,8 @@ export default function SettingsPage() {
       replyToEmail: String(f.get('replyToEmail') ?? ''),
       currency: String(f.get('currency') ?? 'USD'),
       emailNotifications: f.get('emailNotifications') === 'on',
+      allowedOrigins: String(f.get('allowedOrigins') ?? '').split(/\r?\n/).map((v) => v.trim()).filter(Boolean),
+      dailyEmailCap: Number(f.get('dailyEmailCap') ?? 50),
     };
     try {
       await api.updateSettings(payload);
@@ -137,10 +142,39 @@ export default function SettingsPage() {
                 <input type="checkbox" name="emailNotifications" defaultChecked={settings.emailNotifications} className="h-4 w-4 rounded border-[#cfd7e3] text-brand-600 focus:ring-brand-500" />
                 Send email notifications for new lead captures
               </label>
+              <Field label="Widget website origins" hint="One exact HTTPS origin per line (for example, https://www.example.co.za). Only these websites can submit leads through your widget.">
+                <Textarea name="allowedOrigins" rows={4} defaultValue={(settings.allowedOrigins ?? []).join('\n')} placeholder="https://www.example.co.za" />
+              </Field>
+              <Field label="Daily review email limit" hint="Maximum automated and manual review emails sent per 24-hour window.">
+                <Input name="dailyEmailCap" type="number" min={1} max={500} defaultValue={settings.dailyEmailCap ?? 50} />
+              </Field>
               <div className="flex justify-end border-t border-[#eef1f6] pt-4">
                 <Button type="submit" disabled={busy} className="w-full sm:w-auto">{busy ? 'Saving…' : 'Save email settings'}</Button>
               </div>
             </form>
+          </Card>
+          <Card title="Privacy and account data" subtitle="Export your TradePro data or permanently delete your account.">
+            <div className="flex flex-wrap gap-3">
+              <Button type="button" variant="secondary" onClick={async () => {
+                try {
+                  const data = await api.exportAccountData();
+                  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url; link.download = 'tradepro-account-export.json'; link.click();
+                  URL.revokeObjectURL(url);
+                } catch { setError('Unable to export account data. Please try again.'); }
+              }}>Export my data</Button>
+              <Button type="button" color="danger" onClick={() => setDeleteConfirm(true)}>Delete account</Button>
+            </div>
+            {deleteConfirm ? <div className="mt-4 space-y-3 rounded-xl border border-red-200 bg-red-50 p-4">
+              <p className="text-sm font-semibold text-red-900">This permanently deletes your account and associated CRM, ReviewFlow and Invoicing data.</p>
+              <Field label="Confirm your current password"><Input type="password" autoComplete="current-password" value={deletePassword} onChange={e=>setDeletePassword(e.target.value)} /></Field>
+              <div className="flex gap-2">
+                <Button type="button" color="danger" disabled={!deletePassword} onClick={async()=>{try{await api.deleteAccount(deletePassword);window.location.assign('/login');}catch{setError('Account deletion failed. Check your password and try again.');}finally{setDeletePassword('');setDeleteConfirm(false);}}}>Permanently delete</Button>
+                <Button type="button" variant="secondary" onClick={()=>{setDeleteConfirm(false);setDeletePassword('');}}>Cancel</Button>
+              </div>
+            </div>:null}
           </Card>
         </div>
       </div>

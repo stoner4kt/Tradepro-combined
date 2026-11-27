@@ -144,6 +144,10 @@ export default function Layout() {
       <main className="mx-auto max-w-[1280px] px-4 pb-24 pt-5 sm:px-6 lg:px-6 lg:pb-8">
         <Outlet />
       </main>
+      <footer className="mx-auto flex max-w-[1280px] justify-center gap-4 px-4 pb-24 text-xs text-muted lg:pb-6">
+        <Link to="/privacy" className="underline">Privacy notice</Link>
+        <Link to="/terms" className="underline">Terms of service</Link>
+      </footer>
 
       <nav
         aria-label="Mobile"

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { requireIntegrationSecret, isUuid } from "../_shared/security.ts";
 export const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "content-type, authorization, x-widget-key, x-integration-secret, x-internal-call, x-user-id",
@@ -13,26 +14,16 @@ export function json(data: unknown, status = 200): Response {
 }
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
 
-function adminClient(): SupabaseClient {
+function adminClient(): SupabaseClient<any, any> {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not configured as secrets on this function");
   return createClient(url, key, { db: { schema: "reviewflow" } });
 }
 
-function checkIntegrationSecret(req: Request): boolean {
-  const expected = Deno.env.get("INTEGRATION_SECRET");
-  if (!expected) return true;
-  const provided = req.headers.get("x-integration-secret");
-  return provided !== null && provided === expected;
-}
+function checkIntegrationSecret(req: Request): boolean { return requireIntegrationSecret(req); }
 
-function userIdFromRequest(req: Request): string | null {
-  const raw = req.headers.get("x-user-id");
-  if (!raw) return null;
-  const id = raw.trim();
-  return id.length > 0 && id.length <= 64 ? id : null;
-}
+function userIdFromRequest(req: Request): string | null { const raw=req.headers.get("x-user-id"); if(!raw)return null; const id=raw.trim(); return isUuid(id)?id:null; }
 
 interface WidgetOwner {
   user_id: string;
@@ -41,7 +32,7 @@ interface WidgetOwner {
   auto_send_delay_hours: number;
 }
 
-async function resolveWidgetOwner(admin: SupabaseClient, widgetKey: string): Promise<WidgetOwner | null> {
+async function resolveWidgetOwner(admin: SupabaseClient<any, any>, widgetKey: string): Promise<WidgetOwner | null> {
   const { data, error } = await admin.from("settings")
     .select("user_id, widget_api_key, auto_send_enabled, auto_send_delay_hours")
     .eq("widget_api_key", widgetKey).maybeSingle();
@@ -74,6 +65,8 @@ serve(async (req) => {
   if (!userId) return json({ error: "x-user-id header is required" }, 400);
 
   const admin = adminClient();
+  const { data: profile, error: profileError } = await admin.schema("public").from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (profileError || !profile) return json({ error: "Unknown tenant" }, 403);
 
   let body: Record<string, unknown>;
   try { body = await req.json(); }

@@ -1,0 +1,54 @@
+name: Refresh patched dependency lockfile
+on:
+  push:
+    branches: [hardening/go-live]
+    paths:
+      - package.json
+      - package-lock.json
+      - client/package.json
+      - server/package.json
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: dependency-refresh-hardening-go-live
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hardening/go-live
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Resolve patched dependency graph
+        run: |
+          npm audit fix --force --ignore-scripts || true
+          npm audit fix --ignore-scripts
+          npm audit --audit-level=high
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run typecheck:worker -w server
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Check Supabase Edge Functions
+        run: find supabase/functions -mindepth 2 -maxdepth 2 -name index.ts -not -path '*/_shared/*' -print0 | xargs -0 -n1 deno check
+      - name: Verify production dependency audit
+        run: npm audit --omit=dev --audit-level=high
+      - name: Commit lockfile when checks pass
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json client/package.json server/package.json
+          if git diff --cached --quiet; then echo "Lockfile already current"; exit 0; fi
+          git commit -m "chore(deps): refresh lockfile with patched dependencies"
+          git fetch origin hardening/go-live
+          git rebase origin/hardening/go-live
+          git push origin HEAD:hardening/go-live

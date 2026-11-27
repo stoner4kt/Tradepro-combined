@@ -1,16 +1,50 @@
-import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
-import { useEffect, type ReactNode } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Component, useEffect, lazy, Suspense, type ReactNode } from 'react';
 import { useAuth, AuthProvider } from './contexts/AuthContext.js';
-import Layout from './components/Layout.js';
 import { LoginPage, RegisterPage } from './pages/Auth.js';
-import DashboardPage from './pages/Dashboard.js';
-import LeadsPage from './pages/Leads.js';
-import ClientsPage from './pages/Clients.js';
-import ProjectsPage from './pages/Projects.js';
-import SettingsPage from './pages/Settings.js';
-import LedgerPage from './pages/Ledger.js';
-import ReviewsPage from './pages/Reviews.js';
-import InvoicingPage from './pages/Invoicing.js';
+import { CheckYourInboxPage, ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from './pages/AuthFlows.js';
+
+const Layout = lazy(() => import('./components/Layout.js'));
+const DashboardPage = lazy(() => import('./pages/Dashboard.js'));
+const LeadsPage = lazy(() => import('./pages/Leads.js'));
+const ClientsPage = lazy(() => import('./pages/Clients.js'));
+const ProjectsPage = lazy(() => import('./pages/Projects.js'));
+const SettingsPage = lazy(() => import('./pages/Settings.js'));
+const LedgerPage = lazy(() => import('./pages/Ledger.js'));
+const ReviewsPage = lazy(() => import('./pages/Reviews.js'));
+const InvoicingPage = lazy(() => import('./pages/Invoicing.js'));
+const PublicDocumentPage = lazy(() => import('./pages/PublicDocument.js'));
+const PrivacyPage = lazy(() => import('./pages/Legal.js').then(module => ({ default: module.PrivacyPage })));
+const TermsPage = lazy(() => import('./pages/Legal.js').then(module => ({ default: module.TermsPage })));
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error) {
+    // Avoid logging user or request data; detailed diagnostics belong in the
+    // configured monitoring service when one is enabled.
+    console.error('Application render failed', error.message);
+  }
+
+  render() {
+    if (this.state.failed) {
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-page p-6">
+          <section className="max-w-md rounded-xl border border-line bg-white p-8 text-center">
+            <h1 className="text-xl font-bold text-ink">Something went wrong</h1>
+            <p className="mt-2 text-sm text-muted">The page could not be displayed. Reload to try again.</p>
+            <button type="button" onClick={() => window.location.reload()} className="mt-5 rounded-lg bg-brand-600 px-4 py-3 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Reload page</button>
+          </section>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -33,7 +67,7 @@ function PublicOnly({ children }: { children: ReactNode }) {
 }
 
 function ScrollToTop() {
-  const { pathname } = window.location;
+  const { pathname } = useLocation();
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
@@ -45,6 +79,8 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ScrollToTop />
+        <ErrorBoundary>
+        <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-page" role="status">Loading…</div>}>
         <Routes>
           <Route
             path="/login"
@@ -54,6 +90,12 @@ export default function App() {
               </PublicOnly>
             }
           />
+          <Route path="/check-your-inbox" element={<CheckYourInboxPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route
             path="/register"
             element={
@@ -82,31 +124,17 @@ export default function App() {
           {/* Shared document links — the invoicing-public edge function
               renders share pages directly from the token; these client-side
               routes forward browsers there (no CRM login needed). */}
-          <Route path="/q/:token" element={<PublicDocumentForwarder kind="quote" />} />
-          <Route path="/i/:token" element={<PublicDocumentForwarder kind="invoice" />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/q/:token" element={<PublicDocumentPage kind="quote" />} />
+          <Route path="/i/:token" element={<PublicDocumentPage kind="invoice" />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
+        </Suspense>
+        </ErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
   );
 }
 
-// The share page itself is rendered by the invoicing-public edge function on
-// the project's Supabase URL; these SPA routes just redirect there so links
-// survive whichever host serves them.
-function PublicDocumentForwarder({ kind }: { kind: 'quote' | 'invoice' }) {
-  const { token } = useParams();
-  useEffect(() => {
-    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || '';
-    if (!supabaseUrl || !token) {
-      window.location.href = `https://supabase.co/functions/v1/invoicing-public/${kind}/${encodeURIComponent(token ?? '')}`;
-      return;
-    }
-    window.location.replace(`${supabaseUrl.replace(/\/+$/, '')}/functions/v1/invoicing-public/${kind}/${encodeURIComponent(token)}`);
-  }, [kind, token]);
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-page">
-      <p className="text-sm text-muted">Opening shared document…</p>
-    </div>
-  );
+function NotFoundPage() {
+  return <main className="flex min-h-screen items-center justify-center bg-page p-6"><section className="max-w-md rounded-xl border border-line bg-white p-8 text-center"><h1 className="text-2xl font-bold text-ink">Page not found</h1><p className="mt-2 text-sm text-muted">The page you requested does not exist.</p><a href="/" className="mt-5 inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Go to dashboard</a></section></main>;
 }

@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
 import { Alert, Button, Field, Input, Select } from '../components/ui.js';
 
@@ -18,6 +18,11 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle: str
           <h2 className="mb-4 text-lg font-semibold text-ink">{title}</h2>
           {children}
         </div>
+        <p className="mt-4 text-center text-xs text-muted">
+          <Link to="/privacy" className="underline">Privacy notice</Link>
+          <span className="px-2">·</span>
+          <Link to="/terms" className="underline">Terms of service</Link>
+        </p>
       </div>
     </div>
   );
@@ -26,9 +31,10 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle: str
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(searchParams.get('reason') === 'expired' ? 'Your session expired. Please sign in again.' : '');
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: FormEvent) => {
@@ -52,12 +58,13 @@ export function LoginPage() {
           <Input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
         </Field>
         <Field label="Password">
-          <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+          <Input type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
         </Field>
         {error ? <Alert tone="error">{error}</Alert> : null}
         <Button type="submit" disabled={busy} className="w-full">
           {busy ? 'Signing in…' : 'Sign in'}
         </Button>
+        <p className="text-center text-sm text-muted"><Link to="/forgot-password" className="font-semibold text-brand-600">Forgot password?</Link></p>
         <p className="text-center text-sm text-muted">
           New to TradePro?{' '}
           <Link to="/register" className="font-semibold text-brand-600 transition duration-150 hover:text-brand-700">
@@ -90,8 +97,8 @@ export function RegisterPage() {
     setError('');
     setBusy(true);
     try {
-      await register(form);
-      navigate('/');
+      const signedIn = await register(form);
+      navigate(signedIn ? '/' : '/check-your-inbox?email=' + encodeURIComponent(form.email));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
@@ -121,10 +128,10 @@ export function RegisterPage() {
           </Select>
         </Field>
         <Field label="Work email">
-          <Input type="email" required value={form.email} onChange={set('email')} placeholder="jane@smithmail.com" />
+          <Input type="email" required autoComplete="email" value={form.email} onChange={set('email')} placeholder="jane@smithmail.com" />
         </Field>
         <Field label="Password" hint="At least 8 characters">
-          <Input type="password" required value={form.password} onChange={set('password')} placeholder="••••••••" />
+          <Input type="password" required minLength={10} autoComplete="new-password" value={form.password} onChange={set('password')} placeholder="••••••••" />
         </Field>
         {error ? <Alert tone="error">{error}</Alert> : null}
         <Button type="submit" disabled={busy} className="w-full">
@@ -135,6 +142,9 @@ export function RegisterPage() {
           <Link to="/login" className="font-semibold text-brand-600 transition duration-150 hover:text-brand-700">
             Sign in
           </Link>
+        </p>
+        <p className="text-center text-xs text-muted">
+          By creating an account you acknowledge the <Link to="/terms" className="underline">Terms</Link> and <Link to="/privacy" className="underline">Privacy notice</Link>.
         </p>
       </form>
     </AuthShell>

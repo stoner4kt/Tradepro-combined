@@ -23,7 +23,8 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "resend": "^4.0.0",
-    "zod": "^3.23.8"
+    "vite": "8.4.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250909.0",
@@ -32,11 +33,15 @@
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^20.14.0",
-    "supertest": "^7.0.0",
     "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0",
-    "vitest": "^2.0.5",
+    "vitest": "^5.1.2",
     "wrangler": "^4.28.0"
-  }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "description": "TradePro API and scheduled Worker runtime"
 }

@@ -19,6 +19,7 @@
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
   "keep_vars": true,
+  "triggers": { "crons": ["*/5 * * * *", "*/15 * * * *", "0 3 * * *"] },
   "observability": {
     "enabled": true
   }
@@ -33,25 +34,34 @@
 // Variables and Secrets (plain text):
 //
 //   NODE_ENV               production
-//   CORS_ORIGIN            https://tradepro-combined.pages.dev
+//   CORS_ORIGIN            exact APP_ORIGIN HTTPS origin
+//   APP_ORIGIN             https://app.<domain>
+//   API_ORIGIN             https://api.<domain>
+//   COOKIE_DOMAIN          .<domain> (must cover both app and API hosts)
 //   REVIEWFLOW_AUTO_SEND   true
 //   SUPABASE_URL           https://<ref>.supabase.co
 //   SUPABASE_ANON_KEY      <anon key>
-//   REVIEWFLOW_URL         https://<ref>.supabase.co   (same Supabase project)
-//   INVOICING_URL          https://<ref>.supabase.co   (same Supabase project)
+//   REVIEWFLOW_URL         https://<ref>.supabase.co (optional; defaults to SUPABASE_URL)
+//   INVOICING_URL          https://<ref>.supabase.co (enable invoicing)
 //
-// …and as encrypted secrets:
+// Encrypted secrets:
 //
-//   JWT_SECRET             signs CRM session tokens; unset ⇒ falls back to a
-//                          value committed in this repo (auth bypass)
-//   SUPABASE_SERVICE_KEY   service-role key (note: NOT SUPABASE_SERVICE_ROLE_KEY)
+//   JWT_SECRET             32+ random chars; signs short-lived API sessions
+//   SUPABASE_SERVICE_KEY   service-role key (NOT SUPABASE_SERVICE_ROLE_KEY)
+//   INTEGRATION_SECRET     32+ random chars; shared with ReviewFlow/Invoicing edge functions
+//   REVIEWFLOW_SECRET      if set, must equal INTEGRATION_SECRET
+//   INVOICING_SECRET       if set, must equal INTEGRATION_SECRET
+//   CRON_SECRET            32+ random chars; shared with invoicing-cron
 //   RESEND_API_KEY         transactional + review email
-//   REVIEWFLOW_SECRET      MUST equal INTEGRATION_SECRET on the edge functions
-//   INVOICING_SECRET       MUST equal INTEGRATION_SECRET; falls back to
-//                          REVIEWFLOW_SECRET if not set here
-//   CAPTURE_SECRET         optional — only if REQUIRE_CAPTURE_SECRET is set
-//   RESEND_FROM_EMAIL      optional (defaults to onboarding@resend.dev)
-//   RESEND_REPLY_TO        optional
+//   RESEND_WEBHOOK_SECRET  Resend Svix signing secret (whsec_...)
+//   RESEND_FROM_EMAIL      verified sending-domain address (required)
+//   SV_API_KEY             32+ random chars when invoicing is enabled (Worker-side)
+//   X_API_KEY              matching 32+ random chars in Supabase Edge Function secrets
+//   CAPTURE_SECRET         optional; only used when REQUIRE_CAPTURE_SECRET=true
+//
+// Set ALLOW_BEARER_AUTH=false in production. Never put secrets in this file or
+// commit them to GitHub. The Supabase Edge Function secrets must be set in the
+// Supabase project separately; these Worker secrets are not automatically copied.
 //
 // To enable the Invoicing tab set INVOICING_URL + INVOICING_SECRET and add
 // VITE_ENABLE_INVOICING=true to the Pages build (client/.env.example).
@@ -59,8 +69,12 @@
 // Adding a key here would silently override the dashboard value on every
 // deploy, which is exactly what this file avoids.
 //
-// Local development:
+// // Local development:
 //   `npm run dev:worker` (wrangler dev) reads server/.dev.vars
 //   `npm run dev` (Node/tsx)        reads server/.env
 // Both are gitignored; see server/.dev.vars.example and server/.env.example.
 // ---------------------------------------------------------------------------
+// Scheduled triggers: every 5 minutes atomically claims/sends due ReviewFlow reviews;
+// every 15 minutes invokes invoicing-cron; daily at 03:00 UTC
+// prunes expired auth_tokens and stale rate_limits through the service-role RPC.
+// ReviewFlow and invoice reminder jobs use Postgres-backed claims; they do not depend on a browser session.
