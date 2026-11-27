@@ -36,7 +36,7 @@ export function authRoutes(authService: AuthService): Router {
       }
       const result = await authService.login(parsed.data);
       if (!isSuccess(result)) return sendError(res, 'status' in result ? result.status : 401, 'Invalid email or password');
-      res.cookie('tradepro_session', result.token, { httpOnly: true, secure: config.isProduction, sameSite: 'lax', domain: config.cookieDomain || undefined, path: '/', maxAge: 8 * 60 * 60 * 1000 });
+      res.cookie('tradepro_session', result.token, { httpOnly: true, secure: config.isProduction, sameSite: config.isProduction ? 'none' : 'lax', domain: config.cookieDomain || undefined, path: '/', maxAge: 8 * 60 * 60 * 1000 });
       res.setHeader('Cache-Control', 'no-store');
       res.json({ user: result.user, provider: result.provider });
     }),
@@ -50,7 +50,7 @@ export function authRoutes(authService: AuthService): Router {
     if(!token || token.length>256)return sendError(res,400,'Invalid or expired verification link');
     const result=await authService.verifyEmail(token);
     if(!result)return sendError(res,400,'Invalid or expired verification link');
-    res.cookie('tradepro_session',result.token,{httpOnly:true,secure:config.isProduction,sameSite:'lax',domain:config.cookieDomain||undefined,path:'/',maxAge:8*60*60*1000});
+    res.cookie('tradepro_session',result.token,{httpOnly:true,secure:config.isProduction,sameSite:config.isProduction?'none':'lax',domain:config.cookieDomain||undefined,path:'/',maxAge:8*60*60*1000});
     res.setHeader('Cache-Control','no-store');
     return res.json({user:result.user});
   }));
