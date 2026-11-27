@@ -139,7 +139,7 @@ export function productionConfigErrors(): string[] {
   const apiOrigin = process.env.API_ORIGIN || '';
   const cookieDomain = process.env.COOKIE_DOMAIN || '';
   try { const parsed = new URL(appOrigin); if (parsed.protocol !== 'https:' || parsed.origin !== appOrigin) errors.push('APP_ORIGIN must be one exact HTTPS origin'); } catch { errors.push('APP_ORIGIN must be one exact HTTPS origin'); }
-  try { const api = new URL(apiOrigin); const app = new URL(appOrigin); if (api.protocol !== 'https:' || api.origin !== apiOrigin || !cookieDomain || !app.hostname.endsWith(cookieDomain.replace(/^\\./,'')) || !api.hostname.endsWith(cookieDomain.replace(/^\\./,''))) errors.push('APP_ORIGIN and API_ORIGIN must be HTTPS hosts covered by COOKIE_DOMAIN'); } catch { errors.push('API_ORIGIN must be one exact HTTPS origin'); }
+  try { const api = new URL(apiOrigin); const app = new URL(appOrigin); const cookieHost = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain; const covered = (host: string) => Boolean(cookieHost) && (host === cookieHost || host.endsWith('.' + cookieHost)); if (api.protocol !== 'https:' || api.origin !== apiOrigin || !covered(app.hostname) || !covered(api.hostname)) errors.push('APP_ORIGIN and API_ORIGIN must be HTTPS hosts covered by COOKIE_DOMAIN'); } catch { errors.push('API_ORIGIN must be one exact HTTPS origin'); }
   if ((process.env.RESEND_FROM_EMAIL || '').toLowerCase().includes('@resend.dev')) errors.push('RESEND_FROM_EMAIL must use your verified sending domain');
   if (process.env.RESEND_API_KEY && !process.env.RESEND_WEBHOOK_SECRET) {
     errors.push('RESEND_WEBHOOK_SECRET is required when Resend is enabled');
