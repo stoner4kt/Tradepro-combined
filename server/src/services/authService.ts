@@ -101,7 +101,10 @@ export class AuthService {
     if (!password || password.length > 128) throw new Error('Re-authentication failed');
     const { data: account, error: accountError } = await this.admin.auth.admin.getUserById(userId);
     if (accountError || !account?.user?.email) throw new Error('Re-authentication failed');
-    const { error: reauthError } = await this.admin.auth.signInWithPassword({
+    const verifier = createClient(config.supabase.url, config.supabase.anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error: reauthError } = await verifier.auth.signInWithPassword({
       email: account.user.email,
       password,
     });
