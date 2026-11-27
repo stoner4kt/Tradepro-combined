@@ -48,3 +48,5 @@ verify_jwt = false
 
 [functions.invoicing-resend-webhook]
 verify_jwt = false
+[functions.reviewflow-unsubscribe]
+verify_jwt = false
