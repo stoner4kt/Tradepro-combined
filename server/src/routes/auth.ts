@@ -38,9 +38,13 @@ export function authRoutes(authService: AuthService): Router {
       if (!isSuccess(result)) {
         return sendError(res, result.status, result.error);
       }
-      res.json({ token: result.token, user: result.user, provider: result.provider });
+      res.cookie('tradepro_session', result.token, { httpOnly: true, secure: config.isProduction, sameSite: 'lax', domain: config.cookieDomain || undefined, path: '/', maxAge: 8 * 60 * 60 * 1000 });
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ user: result.user, provider: result.provider });
     }),
   );
+
+  router.post('/logout', (req, res) => { res.clearCookie('tradepro_session', { httpOnly: true, secure: config.isProduction, sameSite: 'lax', domain: config.cookieDomain || undefined, path: '/' }); res.status(204).end(); });
 
   router.get(
     '/me',
