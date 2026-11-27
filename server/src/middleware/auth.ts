@@ -49,6 +49,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
         sendError(res, 401, 'Session revoked');
         return;
       }
+      const limit = await service.allowAuthenticatedRequest(user.id);
+      if (!limit.allowed) {
+        res.setHeader('Retry-After', String(limit.retryAfter));
+        sendError(res, 429, 'Too many requests');
+        return;
+      }
       (req as AuthedRequest).user = user;
       next();
     })
