@@ -117,7 +117,7 @@ export function productionConfigErrors(): string[] {
   if (!config.isProduction) return [];
   const required = [
     'JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY',
-    'SUPABASE_ANON_KEY', 'CORS_ORIGIN', 'INTEGRATION_SECRET',
+    'SUPABASE_ANON_KEY', 'CORS_ORIGIN', 'APP_ORIGIN', 'INTEGRATION_SECRET', 'RESEND_API_KEY', 'RESEND_FROM_EMAIL',
     'CRON_SECRET', 'COOKIE_DOMAIN',
   ];
   const missing = required.filter((key) => !process.env[key]?.trim());
@@ -135,6 +135,9 @@ export function productionConfigErrors(): string[] {
   } catch {
     errors.push('CORS_ORIGIN must be one exact HTTPS origin');
   }
+  const appOrigin = process.env.APP_ORIGIN || '';
+  try { const parsed = new URL(appOrigin); if (parsed.protocol !== 'https:' || parsed.origin !== appOrigin) errors.push('APP_ORIGIN must be one exact HTTPS origin'); } catch { errors.push('APP_ORIGIN must be one exact HTTPS origin'); }
+  if ((process.env.RESEND_FROM_EMAIL || '').toLowerCase().includes('@resend.dev')) errors.push('RESEND_FROM_EMAIL must use your verified sending domain');
   if (process.env.RESEND_API_KEY && !process.env.RESEND_WEBHOOK_SECRET) {
     errors.push('RESEND_WEBHOOK_SECRET is required when Resend is enabled');
   }
