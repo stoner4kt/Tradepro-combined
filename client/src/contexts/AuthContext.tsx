@@ -27,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    try { window.localStorage.removeItem('tradepro_token'); } catch { /* storage may be unavailable */ }
     void refreshUser().finally(() => setLoading(false));
   }, [refreshUser]);
 
