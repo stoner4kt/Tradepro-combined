@@ -1,4 +1,5 @@
 import express from 'express';
+import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -61,6 +62,28 @@ export function createApp(): express.Express {
   app.get('/api/health', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json({ ok: true });
+  });
+
+  app.get('/api/health/deep', async (req, res) => {
+    const expected = process.env.CRON_SECRET || '';
+    const supplied = req.get('x-cron-secret') || '';
+    if (expected.length < 32 || expected.length !== supplied.length) {
+      return res.status(401).json({ error: { message: 'Unauthorized' } });
+    }
+    let mismatch = 0;
+    for (let i = 0; i < expected.length; i++) mismatch |= expected.charCodeAt(i) ^ supplied.charCodeAt(i);
+    if (mismatch !== 0) return res.status(401).json({ error: { message: 'Unauthorized' } });
+    if (!config.supabase.configured) return res.status(503).json({ error: { message: 'Health check unavailable' } });
+    try {
+      const supabase = createClient(config.supabase.url, config.supabase.serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+      const { error } = await supabase.from('profiles').select('id').limit(1);
+      if (error) throw error;
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json({ ok: true });
+    } catch (err) {
+      logger.warn('Deep health check failed', { error: (err as Error).message });
+      return res.status(503).json({ error: { message: 'Health check unavailable' } });
+    }
   });
 
   // Single store instance shared by auth + all resource routes.
