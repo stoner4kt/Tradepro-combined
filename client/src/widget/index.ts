@@ -337,6 +337,9 @@ function makeWidget(config: WidgetConfig): void {
   });
 
   closeBtn.addEventListener('click', () => { setState(STATE_CLOSED); button.focus(); });
+  panel.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { setState(STATE_CLOSED); button.focus(); }
+  });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
