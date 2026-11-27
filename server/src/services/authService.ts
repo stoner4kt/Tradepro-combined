@@ -342,4 +342,37 @@ function mapSupabaseProfile(row: Record<string, unknown>): User {
     createdAt: String(row.created_at ?? ''),
     updatedAt: String(row.updated_at ?? ''),
   };
+
+  async exportUserData(userId:string):Promise<Record<string,unknown>> {
+    if(!this.admin)throw new Error('Account export requires Supabase');
+    const query=async(schema:string,table:string)=>{
+      const {data,error}=await this.admin!.schema(schema).from(table).select('*').eq('user_id',userId);
+      if(error)throw new Error('Unable to export account data');
+      return data||[];
+    };
+    const [profile,settings,clients,leads,projects,emailLogs,emailCaptures,reviewSettings,reviewLeads,reviewRequests,invoicingSettings,customers,documents,documentLines,payments,emailEvents,optOuts]=await Promise.all([
+      this.admin.from('profiles').select('*').eq('id',userId).maybeSingle(),
+      query('public','settings'),query('public','clients'),query('public','leads'),query('public','projects'),query('public','email_logs'),query('public','email_captures'),
+      query('reviewflow','settings'),query('reviewflow','leads'),query('reviewflow','review_requests'),
+      query('invoicing','settings'),query('invoicing','customers'),query('invoicing','documents'),query('invoicing','document_lines'),query('invoicing','payments'),query('invoicing','email_events'),query('public','email_opt_outs')
+    ]);
+    if(profile.error)throw new Error('Unable to export account data');
+    return {exported_at:new Date().toISOString(),profile:profile.data,settings,clients,leads,projects,email_logs:emailLogs,email_captures:emailCaptures,reviewflow:{settings:reviewSettings,leads:reviewLeads,review_requests:reviewRequests},invoicing:{settings:invoicingSettings,customers,documents,document_lines:documentLines,payments,email_events:emailEvents},email_opt_outs:optOuts};
+  }
+
+  async deleteAccount(userId:string,password:string):Promise<void> {
+    if(!this.admin)throw new Error('Account deletion requires Supabase');
+    if(!password||password.length>128)throw new Error('Re-authentication failed');
+    const {data:account,error:accountError}=await this.admin.auth.admin.getUserById(userId);
+    if(accountError||!account?.user?.email)throw new Error('Re-authentication failed');
+    const {error:reauthError}=await this.admin.auth.signInWithPassword({email:account.user.email,password});
+    if(reauthError)throw new Error('Re-authentication failed');
+    const {data:objects,error:objectsError}=await this.admin.schema('storage').from('objects').select('name').eq('bucket_id','invoicing-documents').like('name',userId+'/%');
+    if(objectsError)throw new Error('Unable to remove account files');
+    const paths=(objects||[]).map((item:{name:string})=>item.name);
+    if(paths.length){const {error:removeError}=await this.admin.storage.from('invoicing-documents').remove(paths);if(removeError)throw new Error('Unable to remove account files');}
+    const {error:deleteError}=await this.admin.auth.admin.deleteUser(userId);
+    if(deleteError)throw new Error('Unable to delete account');
+  }
+
 }
