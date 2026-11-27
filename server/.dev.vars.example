@@ -5,7 +5,10 @@
 # `npm run dev` (Node/tsx) does not read this file; it uses server/.env.
 
 NODE_ENV=development
-CORS_ORIGIN=*
+CORS_ORIGIN=http://localhost:5173
+APP_ORIGIN=http://localhost:5173
+API_ORIGIN=http://localhost:4000
+COOKIE_DOMAIN=
 
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
@@ -15,5 +18,8 @@ REVIEWFLOW_URL=https://your-project.supabase.co
 REVIEWFLOW_AUTO_SEND=true
 
 JWT_SECRET=change-me-to-a-long-random-string
+ALLOW_BEARER_AUTH=true
+CRON_SECRET=local-only-replace-with-32-characters
+RESEND_WEBHOOK_SECRET=
 RESEND_API_KEY=
-RESEND_FROM_EMAIL=TradePro CRM <onboarding@resend.dev>
+RESEND_FROM_EMAIL=TradePro CRM <hello@example.test>
