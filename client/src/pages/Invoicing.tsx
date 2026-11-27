@@ -196,6 +196,36 @@ function DocumentEditor({ doc, onClose, onSaved }: { doc: InvoicingDocument; onC
   const updateLine = (key: string, patch: Partial<DraftLine>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
+  const duplicateAsDraft = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const res = await api.createInvoicingDocument({
+        kind: doc.kind,
+        external_customer_ref: doc.external_customer_ref,
+        external_project_ref: doc.external_project_ref,
+        external_lead_ref: doc.external_lead_ref,
+        customer_snapshot: doc.customer_snapshot,
+        title: doc.title,
+        notes: doc.notes,
+        currency: doc.currency,
+        due_date: doc.due_date,
+        quote_valid_until: doc.quote_valid_until,
+        lines: (doc.lines || []).map(line => ({
+          description: line.description,
+          quantity: line.quantity,
+          unit_price_minor: line.unit_price_minor,
+        })),
+      });
+      onSaved(res.document);
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const save = async () => {
     setSaving(true);
     setError('');
@@ -222,6 +252,33 @@ function DocumentEditor({ doc, onClose, onSaved }: { doc: InvoicingDocument; onC
       setSaving(false);
     }
   };
+
+  if (doc.status !== 'draft') {
+    return (
+      <Modal title={`${doc.kind === 'quote' ? 'Quote' : 'Invoice'} ${doc.number}`} onClose={onClose}>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-muted">This document is locked after sending and is read-only.</span>
+            {showStatusBadge(doc.status)}
+          </div>
+          <div className="rounded-lg border border-line p-3">
+            <p className="font-semibold text-ink">{doc.title || doc.number}</p>
+            <p className="text-sm text-muted">{doc.customer_snapshot?.name || 'No customer'}</p>
+            <p className="text-sm text-muted">{doc.customer_snapshot?.email || ''}</p>
+            <ul className="mt-3 space-y-2 text-sm">
+              {(doc.lines || []).map(line => <li key={line.id} className="flex justify-between gap-3"><span>{line.description} × {formatLineQuantity(line.quantity)}</span><span>{money(line.quantity * line.unit_price_minor, doc.currency)}</span></li>)}
+            </ul>
+            <p className="mt-3 border-t border-line pt-3 text-right font-semibold">{money(doc.total_minor, doc.currency)}</p>
+          </div>
+          {error ? <Alert tone="error">{error}</Alert> : null}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={onClose}>Close</Button>
+            <Button onClick={() => void duplicateAsDraft()} disabled={saving}>{saving ? 'Duplicating…' : 'Duplicate as new draft'}</Button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal title={`Edit ${doc.kind === 'quote' ? 'quote' : 'invoice'} ${doc.number}`} onClose={onClose}>
@@ -612,7 +669,7 @@ export default function InvoicingPage() {
         <DocumentEditor
           doc={editing}
           onClose={() => setEditing(null)}
-          onSaved={(d) => setDocs((prev) => prev.map((x) => (x.id === d.id ? d : x)))}
+          onSaved={(d) => setDocs((prev) => prev.some((x) => x.id === d.id) ? prev.map((x) => (x.id === d.id ? d : x)) : [d, ...prev])}
         />
       ) : null}
     </div>
