@@ -10,6 +10,7 @@ interface WorkerEnv {
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_KEY?: string;
   CRON_SECRET?: string;
+  API_ORIGIN?: string;
   INVOICING_URL?: string;
   INVOICING_SECRET?: string;
   API_ORIGIN?: string;
