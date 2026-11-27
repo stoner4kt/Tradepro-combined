@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useEffect, type ReactNode } from 'react';
 import { useAuth, AuthProvider } from './contexts/AuthContext.js';
 import Layout from './components/Layout.js';
@@ -35,7 +35,7 @@ function PublicOnly({ children }: { children: ReactNode }) {
 }
 
 function ScrollToTop() {
-  const { pathname } = window.location;
+  const { pathname } = useLocation();
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
