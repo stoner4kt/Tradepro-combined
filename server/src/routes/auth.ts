@@ -102,6 +102,19 @@ export function authRoutes(authService: AuthService): Router {
     return res.status(204).end();
   }));
 
+  router.delete('/account', requireAuth, asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user!;
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    if (password.length < 10 || password.length > 128) return sendError(res, 400, 'Re-enter your password to delete this account');
+    try {
+      await authService.deleteAccount(user.id, password);
+    } catch {
+      return sendError(res, 400, 'Unable to verify your password or delete this account');
+    }
+    res.clearCookie('tradepro_session', { httpOnly: true, secure: config.isProduction, sameSite: 'lax', domain: config.cookieDomain || undefined, path: '/' });
+    return res.status(204).end();
+  }));
+
   router.get('/export', requireAuth, asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user!;
     const exported = await authService.exportUserData(user.id);
