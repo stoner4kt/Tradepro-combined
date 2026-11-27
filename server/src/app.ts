@@ -29,7 +29,15 @@ export function createApp(): express.Express {
     app.use((_req, res) => res.status(503).json({ error: { message: 'Service temporarily unavailable' } }));
     return app;
   }
-  app.use(cors({ origin: config.corsOrigin || false, credentials: true, optionsSuccessStatus: 204 }));
+  app.use(cors({ origin: config.corsOrigin || false, credentials: true, optionsSuccessStatus: 204, exposedHeaders: ['Retry-After'] }));
+  app.use((req, res, next) => {
+    if (['GET','HEAD','OPTIONS'].includes(req.method)) return next();
+    const openAuth = ['/api/auth/login','/api/auth/register'].includes(req.path);
+    if (openAuth) return next();
+    const origin = req.get('origin') || (req.get('referer') ? new URL(req.get('referer')!).origin : '');
+    if (!config.appOrigin || origin !== config.appOrigin || req.get('content-type')?.split(';')[0] !== 'application/json' || req.get('x-tradepro') !== '1') return res.status(403).json({ error: { message: 'Request origin validation failed' } });
+    next();
+  });
   app.use((_req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
   app.use(express.json({ limit: '256kb' }));
 
