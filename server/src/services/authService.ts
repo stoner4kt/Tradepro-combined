@@ -99,8 +99,12 @@ export class AuthService {
           user_metadata: { full_name: input.fullName ?? '', business_name: input.businessName ?? '', business_type: input.businessType ?? '', phone: input.phone ?? '' },
         });
         if (error || !data.user) return { error: 'Unable to create account', status: 400, provider: 'supabase' };
-        const rawToken = await this.createAuthToken(data.user.id, 'email_verify', 24 * 60 * 60);
-        await this.sendAuthLink(data.user.email || input.email, 'verify-email', rawToken, 'Verify your TradePro email');
+        try {
+          const rawToken = await this.createAuthToken(data.user.id, 'email_verify', 24 * 60 * 60);
+          await this.sendAuthLink(data.user.email || input.email, 'verify-email', rawToken, 'Verify your TradePro email');
+        } catch (deliveryError) {
+          logger.warn('Registration created but verification delivery needs retry', { error: (deliveryError as Error).message });
+        }
         return { pending: true, message: 'If registration can be completed, a verification email will be sent shortly.', provider: 'supabase' };
       } catch (err) {
         logger.error('Supabase signUp failed', { err: (err as Error).message });
