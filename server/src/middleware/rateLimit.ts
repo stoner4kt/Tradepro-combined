@@ -7,12 +7,13 @@ const client = config.supabase.configured
   ? createClient(config.supabase.url,config.supabase.serviceKey,{auth:{autoRefreshToken:false,persistSession:false}})
   : null;
 
-export function rateLimit(options:{scope:string;windowSeconds:number;max:number;failClosed?:boolean}) {
+export function rateLimit(options:{scope:string;windowSeconds:number;max:number;failClosed?:boolean;keyBy?:"ip"|"email"|"ip_email"}) {
  return async (req:Request,res:Response,next:NextFunction):Promise<void>=>{
   if(!client){if(options.failClosed){sendError(res,503,'Rate limiting unavailable');return;}next();return;}
   const forwarded=String(req.headers['cf-connecting-ip']||req.socket.remoteAddress||'unknown').slice(0,64);
   const email=String(req.body?.email||'').trim().toLowerCase();
-  const rawKey=`${options.scope}:${forwarded}:${email}`;
+  const keyBy=options.keyBy||"ip_email";
+  const rawKey=keyBy==="ip"?`${options.scope}:${forwarded}`:keyBy==="email"?`${options.scope}:${email||"missing-email"}`:`${options.scope}:${forwarded}:${email}`;
   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(rawKey));
   const key=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
   try{
