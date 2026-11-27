@@ -10,5 +10,5 @@ export function requireIntegrationSecret(req:Request):boolean{
  return expected.length>=32 && timingSafeEqual(expected,provided);
 }
 export function clientIp(req:Request):string{
- return (req.headers.get("cf-connecting-ip")||req.headers.get("x-forwarded-for")||"unknown").split(",")[0].trim().slice(0,64);
+ return (req.headers.get("cf-connecting-ip")||"unknown").split(",")[0].trim().slice(0,64);
 }
