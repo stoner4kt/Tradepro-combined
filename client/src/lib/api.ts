@@ -88,9 +88,7 @@ export const resetPassword = (token:string,password:string) => request<{message:
 export const updateProfile = (patch: Record<string, unknown>) =>
   request<{ user: import('../types/api.js').User }>('/auth/profile', { method: 'PATCH', body: JSON.stringify(patch) });
 
-export async function exportMyData(): Promise<void> {
-  const data = await request<Record<string, unknown>>('/auth/export');
-  const blob = new Blconst createLead = (payload: Record<string, unknown>) =>
+export const createLead = (payload: Record<string, unknown>) =>
   request<{ lead: import('../types/api.js').Lead }>('/leads', { method: 'POST', body: JSON.stringify(payload) });
 
 export const updateLead = (id: string, patch: Record<string, unknown>) =>
