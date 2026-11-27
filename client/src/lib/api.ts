@@ -81,6 +81,7 @@ export const register = (payload: { email: string; password: string; fullName?: 
 export const me = () => request<{ user: import('../types/api.js').User }>('/auth/me');
 export const logout = () => request<void>('/auth/logout', { method: 'POST' });
 export const verifyEmail = (token: string) => request<{user: import('../types/api.js').User}>('/auth/verify-email',{method:'POST',body:JSON.stringify({token})});
+export const resendVerification = (email:string) => request<{message:string}>('/auth/resend-verification',{method:'POST',body:JSON.stringify({email})},false);
 export const forgotPassword = (email:string) => request<{message:string}>('/auth/forgot-password',{method:'POST',body:JSON.stringify({email})});
 export const resetPassword = (token:string,password:string) => request<{message:string}>('/auth/reset-password',{method:'POST',body:JSON.stringify({token,password})});
 
