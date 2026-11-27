@@ -43,4 +43,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json package-lock.json server/package.json client/package.json
           git commit -m "chore(deps): apply audited dependency security updates [skip ci]"
+          git fetch origin hardening/go-live
+          git rebase origin/hardening/go-live
           git push origin HEAD:hardening/go-live
