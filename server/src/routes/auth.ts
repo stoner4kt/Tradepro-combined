@@ -55,6 +55,12 @@ export function authRoutes(authService: AuthService): Router {
     return res.json({user:result.user});
   }));
 
+  router.post('/resend-verification',rateLimit({scope:'auth-resend-verification',windowSeconds:3600,max:3,failClosed:config.isProduction}),asyncHandler(async(req,res)=>{
+    const email=typeof req.body?.email==='string'?req.body.email:'';
+    if(email.length<=254){try{await authService.resendVerification(email.toLowerCase().trim());}catch{/* generic response */}}
+    return res.status(200).json({message:'If the account needs verification, a new link will be sent.'});
+  }));
+
   router.post('/forgot-password',rateLimit({scope:'auth-forgot',windowSeconds:3600,max:3,failClosed:config.isProduction}),asyncHandler(async(req,res)=>{
     const email=typeof req.body?.email==='string'?req.body.email:'';
     if(email.length<=254){try{await authService.requestPasswordReset(email.toLowerCase().trim());}catch{/* identical public response */}}
