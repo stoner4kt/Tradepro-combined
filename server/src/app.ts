@@ -38,13 +38,13 @@ export function createApp(): express.Express {
     if (!config.appOrigin || origin !== config.appOrigin || req.get('content-type')?.split(';')[0] !== 'application/json' || req.get('x-tradepro') !== '1') return res.status(403).json({ error: { message: 'Request origin validation failed' } });
     next();
   });
-  app.use((_req, res, next) => {
+  app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-    res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+    if (config.isProduction) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    if (req.path.startsWith('/api')) res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
     next();
   });
   app.use(express.json({ limit: '256kb' }));
