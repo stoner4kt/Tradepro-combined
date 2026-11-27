@@ -68,6 +68,8 @@ serve(async (req) => {
   if (!email) return json({ error: "email is required" }, 400);
 
   const admin = adminClient();
+  const { data: profile, error: profileError } = await admin.schema("public").from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (profileError || !profile) return json({ error: "Unknown tenant" }, 403);
   const { data: leads, error } = await admin
     .from("leads")
     .select("id, first_name, last_name, email, service, status, created_at, completed_at, review_send_after")
