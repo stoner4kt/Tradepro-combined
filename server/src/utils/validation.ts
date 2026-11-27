@@ -14,7 +14,7 @@ export const zOptionalString = z.string().trim().max(2000);
 
 export const registerSchema = z.object({
   email,
-  password: z.string().min(8, 'Password must be at least 8 characters').max(128),
+  password: z.string().min(10, 'Password must be at least 10 characters').max(128),
   fullName: z.string().max(120).optional().default(''),
   businessName: z.string().max(160).optional().default(''),
   businessType: z.enum(BUSINESS_TYPES).optional().default(''),
@@ -35,7 +35,7 @@ export const profileUpdateSchema = z.object({
 
 export const passwordChangeSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(8, 'New password must be at least 8 characters').max(128),
+  newPassword: z.string().min(10, 'New password must be at least 10 characters').max(128),
 });
 
 export const leadCreateSchema = z.object({
