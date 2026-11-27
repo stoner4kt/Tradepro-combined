@@ -679,16 +679,18 @@ serve(async (req: Request): Promise<Response> => {
 
       if (method === "POST" && action === "mark-paid") {
         if (doc.kind !== "invoice") return json({ error: "Only invoices can be marked paid" }, 400);
-        const { error } = await admin.from("documents")
-          .update({ status: "paid", amount_paid_minor: doc.total_minor, updated_at: new Date().toISOString() })
-          .eq("id", id).eq("user_id", userId);
-        if (error) throw error;
+        const outstanding=doc.total_minor-doc.amount_paid_minor;
+        if(outstanding<=0)return json({ok:true,status:"paid"});
+        const {error}=await admin.rpc("record_payment",{
+          p_user_id:userId,p_document_id:id,p_amount_minor:outstanding,p_method:"other",
+          p_reference:"Marked paid manually",p_idempotency_key:"mark-paid:"+doc.id+":"+doc.total_minor,
+        });
+        if(error)return json({error:"Payment could not be recorded"},409);
         await admin.from("email_events").insert({
           user_id: userId, document_id: id, kind: "payment_received",
           to_email: String((doc.customer_snapshot as Record<string, unknown>).email || "customer@sender.invalid"),
-          subject: "Payment received",
-          status: "queued", meta: { dev_console: "true" },
-        }).then(() => undefined, () => undefined);
+          subject: "Payment received", status: "queued", meta: { dev_console: "true" },
+        });
         return json({ ok: true, status: "paid" });
       }
 
