@@ -24,6 +24,9 @@ interface CaptureData {
   phone?: string;
   service?: string;
   message?: string;
+  consent?: boolean;
+  website?: string;
+  started_at?: number;
 }
 
 const STATE_OPEN = 'open';
@@ -206,10 +209,13 @@ function makeWidget(config: WidgetConfig): void {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'rfw-button';
+  button.setAttribute('aria-expanded','false');
+  button.setAttribute('aria-controls','reviewflow-panel');
   button.innerHTML = `<span>${escapeText(buttonText)}</span><span class="rfw-header-star">★</span>`;
 
   const panel = document.createElement('div');
   panel.className = 'rfw-panel';
+  panel.id = 'reviewflow-panel';
   panel.innerHTML = `
     <div class="rfw-header">
       <div class="rfw-header-title"><span class="rfw-header-star">★</span> <span>Get in Touch</span></div>
@@ -242,7 +248,7 @@ function makeWidget(config: WidgetConfig): void {
         <label>Message</label>
         <textarea name="message" rows="3" placeholder="Optional notes…"></textarea>
       </div>
-      <p class="rfw-error"></p>
+      <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden"><label for="rfw-website">Leave this field empty</label><input id="rfw-website" name="website" tabindex="-1" autocomplete="off" /></div>\n      <label class="rfw-consent"><input name="consent" type="checkbox" required /> I agree to be contacted about this enquiry. See the business privacy notice.</label>\n      <p class="rfw-error" role="alert" aria-live="polite"></p>
       <button type="submit" class="rfw-submit">Send Message</button>
     </form>
     <div class="rfw-thanks">
@@ -263,14 +269,14 @@ function makeWidget(config: WidgetConfig): void {
   const submitBtn = panel.querySelector<HTMLButtonElement>('.rfw-submit')!;
   const closeBtn = panel.querySelector<HTMLButtonElement>('.rfw-close')!;
 
-  let mode = STATE_CLOSED;
+  let mode = STATE_CLOSED;\n  const startedAt = Date.now();
 
   function setState(next: string): void {
     mode = next;
     const isOpen = next === STATE_OPEN || next === STATE_THANKS;
     panel.classList.toggle('rfw-open', isOpen);
     panel.classList.toggle('rfw-thanks', next === STATE_THANKS);
-    button.classList.toggle('rfw-hidden', isOpen);
+    button.classList.toggle('rfw-hidden', isOpen);\n    button.setAttribute('aria-expanded',String(isOpen));
   }
 
   function showError(message: string): void {
@@ -284,7 +290,7 @@ function makeWidget(config: WidgetConfig): void {
   }
 
   async function submit(data: CaptureData): Promise<{ ok: boolean; error?: string }> {
-    if (!data.email) return { ok: false, error: 'Email is required.' };
+    if (!data.email) return { ok: false, error: 'Email is required.' };\n    if (data.consent !== true) return { ok: false, error: 'Please consent to being contacted.' };\n    if (data.website) return { ok: false, error: 'Unable to submit this form.' };
     const email = data.email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return { ok: false, error: 'Please enter a valid email address.' };
@@ -324,7 +330,7 @@ function makeWidget(config: WidgetConfig): void {
     window.setTimeout(() => emailEl.focus(), 50);
   });
 
-  closeBtn.addEventListener('click', () => setState(STATE_CLOSED));
+  closeBtn.addEventListener('click', () => { setState(STATE_CLOSED); button.focus(); });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -340,7 +346,7 @@ function makeWidget(config: WidgetConfig): void {
       email: String(fd.get('email') || ''),
       phone: String(fd.get('phone') || ''),
       service: String(fd.get('service') || ''),
-      message: String(fd.get('message') || ''),
+      message: String(fd.get('message') || ''),\n      consent: fd.get('consent') === 'on',\n      website: String(fd.get('website') || ''),\n      started_at: startedAt,
     };
     submitBtn.disabled = true;
     submitBtn.textContent = 'Sending…';
