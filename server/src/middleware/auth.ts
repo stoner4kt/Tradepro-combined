@@ -40,9 +40,13 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   void service
     .me(claims.sub)
-    .then((user) => {
+    .then(async (user) => {
       if (!user) {
         sendError(res, 401, 'Account not found');
+        return;
+      }
+      if (!(await service.isTokenVersionValid(claims.sub, claims.token_version ?? 0))) {
+        sendError(res, 401, 'Session revoked');
         return;
       }
       (req as AuthedRequest).user = user;
