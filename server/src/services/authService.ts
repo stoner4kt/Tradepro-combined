@@ -110,14 +110,27 @@ export class AuthService {
     });
     if (reauthError) throw new Error('Re-authentication failed');
 
-    // Remove private invoice PDFs owned by this user before cascading auth.users.
-    const { data: objects, error: objectsError } = await this.admin.schema('storage').from('objects')
-      .select('name').eq('bucket_id', 'invoicing-documents')
-      .or(`owner_id.eq.${userId},name.like.${userId}/%`);
-    if (objectsError) throw new Error('Unable to remove account files');
-    const paths = (objects ?? []).map((item: { name: string }) => item.name);
-    if (paths.length) {
-      const { error: removeError } = await this.admin.storage.from('invoicing-documents').remove(paths);
+    // Remove private invoice PDFs from the user's storage prefix before the
+    // auth.users cascade. Walk nested folders and paginate large accounts.
+    const bucket = this.admin.storage.from('invoicing-documents');
+    const listFiles = async (prefix: string): Promise<string[]> => {
+      const paths: string[] = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data, error } = await bucket.list(prefix, { limit: 1000, offset });
+        if (error) throw new Error('Unable to remove account files');
+        const items = data ?? [];
+        for (const item of items) {
+          const path = prefix ? `${prefix}/${item.name}` : item.name;
+          if (item.id) paths.push(path);
+          else paths.push(...await listFiles(path));
+        }
+        if (items.length < 1000) break;
+      }
+      return paths;
+    };
+    const paths = await listFiles(userId);
+    for (let i = 0; i < paths.length; i += 100) {
+      const { error: removeError } = await bucket.remove(paths.slice(i, i + 100));
       if (removeError) throw new Error('Unable to remove account files');
     }
 
