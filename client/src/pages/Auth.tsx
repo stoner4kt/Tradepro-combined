@@ -52,12 +52,13 @@ export function LoginPage() {
           <Input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
         </Field>
         <Field label="Password">
-          <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+          <Input type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
         </Field>
         {error ? <Alert tone="error">{error}</Alert> : null}
         <Button type="submit" disabled={busy} className="w-full">
           {busy ? 'Signing in…' : 'Sign in'}
         </Button>
+        <p className="text-center text-sm text-muted"><Link to="/forgot-password" className="font-semibold text-brand-600">Forgot password?</Link></p>
         <p className="text-center text-sm text-muted">
           New to TradePro?{' '}
           <Link to="/register" className="font-semibold text-brand-600 transition duration-150 hover:text-brand-700">
@@ -90,8 +91,8 @@ export function RegisterPage() {
     setError('');
     setBusy(true);
     try {
-      await register(form);
-      navigate('/');
+      const signedIn = await register(form);
+      navigate(signedIn ? '/' : '/check-your-inbox');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
@@ -121,10 +122,10 @@ export function RegisterPage() {
           </Select>
         </Field>
         <Field label="Work email">
-          <Input type="email" required value={form.email} onChange={set('email')} placeholder="jane@smithmail.com" />
+          <Input type="email" required autoComplete="email" value={form.email} onChange={set('email')} placeholder="jane@smithmail.com" />
         </Field>
         <Field label="Password" hint="At least 8 characters">
-          <Input type="password" required value={form.password} onChange={set('password')} placeholder="••••••••" />
+          <Input type="password" required minLength={10} autoComplete="new-password" value={form.password} onChange={set('password')} placeholder="••••••••" />
         </Field>
         {error ? <Alert tone="error">{error}</Alert> : null}
         <Button type="submit" disabled={busy} className="w-full">
