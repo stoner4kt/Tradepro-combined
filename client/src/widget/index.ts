@@ -248,10 +248,10 @@ function makeWidget(config: WidgetConfig): void {
         <label>Message</label>
         <textarea name="message" rows="3" placeholder="Optional notes…"></textarea>
       </div>
-      <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden"><label for="rfw-website">Leave this field empty</label><input id="rfw-website" name="website" tabindex="-1" autocomplete="off" /></div>\n      <label class="rfw-consent"><input name="consent" type="checkbox" required /> I agree to be contacted about this enquiry. See the business privacy notice.</label>\n      <p class="rfw-error" role="alert" aria-live="polite"></p>
+      <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden"><label for="rfw-website">Leave this field empty</label><input id="rfw-website" name="website" tabindex="-1" autocomplete="off" /></div>\n      <label class="rfw-consent"><input name="consent" type="checkbox" required /> I agree to be contacted about this enquiry.</label>\n      <p class="rfw-error" role="alert" aria-live="polite"></p>
       <button type="submit" class="rfw-submit">Send Message</button>
     </form>
-    <div class="rfw-thanks">
+    <div class="rfw-thanks" role="status" aria-live="polite">
       <div class="rfw-thanks-icon">✓</div>
       <p class="rfw-thanks-title">Thank you!</p>
       <p class="rfw-thanks-text">Your message has been received. We'll be in touch soon.</p>
