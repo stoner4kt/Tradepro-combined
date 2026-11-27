@@ -309,25 +309,33 @@ export class SupabaseStore implements Store {
     this.assertSet();
     let q = this.sb
       .from('projects')
-      .select(`${PROJECT_COLUMNS}, clients(first_name,last_name,email), leads(email)`)
+      .select(PROJECT_COLUMNS)
       .eq('user_id', userId);
     if (filters.status) q = q.eq('status', filters.status);
     if (filters.clientId) q = q.eq('client_id', filters.clientId);
     const { data, error } = await q.order('updated_at', { ascending: false });
     if (error) throw new Error(`listProjects failed: ${error.message}`);
-    return (data ?? []).map((d) => mapProject(d));
+    return Promise.all((data ?? []).map(async (d) => {
+      const project = mapProject(d);
+      const client = await this.getClient(userId, project.clientId);
+      const lead = project.leadId ? await this.getLead(userId, project.leadId) : null;
+      return { ...project, clientName: client ? [client.firstName,client.lastName].filter(Boolean).join(' ') : '', clientEmail: client?.email || '', leadEmail: lead?.email || '' };
+    }));
   }
 
   async getProject(userId: string, projectId: string): Promise<Project | null> {
     this.assertSet();
     const { data, error } = await this.sb
       .from('projects')
-      .select(`${PROJECT_COLUMNS}, clients(first_name,last_name,email), leads(email)`)
+      .select(PROJECT_COLUMNS)
       .eq('id', projectId)
       .eq('user_id', userId)
       .maybeSingle();
-    if (error) return null;
-    return data ? mapProject(data) : null;
+    if (error || !data) return null;
+    const project = mapProject(data);
+    const client = await this.getClient(userId, project.clientId);
+    const lead = project.leadId ? await this.getLead(userId, project.leadId) : null;
+    return { ...project, clientName: client ? [client.firstName,client.lastName].filter(Boolean).join(' ') : '', clientEmail: client?.email || '', leadEmail: lead?.email || '' };
   }
 
   async createProject(userId: string, input: NewProjectInput): Promise<Project> {
