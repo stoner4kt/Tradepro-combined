@@ -967,26 +967,7 @@ export default function ReviewsPage() {
   // leads whose review_send_after has elapsed and fire the review email.
   // (For production reliability a pg_cron job or Worker cron pointing at
   // integration-send-review is a drop-in replacement — see SETUP-GUIDE.md.)
-  const sendDuePending = useCallback(async () => {
-    if (!overview) return;
-    const now = Date.now();
-    const due = overview.leads.filter(
-      (l) => l.status === 'complete' && l.review_send_after && new Date(l.review_send_after).getTime() <= now,
-    );
-    for (const lead of due) {
-      try {
-        await api.sendReviewFlowLeadReview(lead.id);
-      } catch {
-        // Individual failures are surfaced on the next manual action; keep polling.
-      }
-    }
-    if (due.length > 0) await load();
-  }, [overview, load]);
-
-  useEffect(() => {
-    const interval = setInterval(() => { void sendDuePending(); }, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [sendDuePending]);
+  // Due review requests are now dispatched by the Cloudflare scheduled Worker.
 
   if (!api.isReviewsIntegrationEnabled()) {
     return (
