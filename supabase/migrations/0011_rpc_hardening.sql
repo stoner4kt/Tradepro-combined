@@ -12,9 +12,11 @@ BEGIN
   INSERT INTO public.clients(user_id,first_name,last_name,email,phone)
   VALUES(v_lead.user_id,v_lead.first_name,v_lead.last_name,v_lead.email,v_lead.phone)
   ON CONFLICT DO NOTHING;
-  SELECT id INTO v_client_id FROM public.clients
-    WHERE user_id=p_user_id AND lower(email)=lower(v_lead.email)
-    ORDER BY created_at ASC LIMIT 1;
+  IF nullif(trim(v_lead.email),'') IS NOT NULL THEN
+    SELECT id INTO v_client_id FROM public.clients
+      WHERE user_id=p_user_id AND lower(email)=lower(v_lead.email)
+      ORDER BY created_at ASC LIMIT 1;
+  END IF;
   IF v_client_id IS NULL THEN
     INSERT INTO public.clients(user_id,first_name,last_name,email,phone)
     VALUES(v_lead.user_id,v_lead.first_name,v_lead.last_name,v_lead.email,v_lead.phone)
@@ -46,8 +48,8 @@ BEGIN
   IF NOT EXISTS(SELECT 1 FROM auth.users WHERE auth.users.id=p_user_id) THEN RAISE EXCEPTION 'user not found'; END IF;
   SELECT id INTO v_settings_id FROM invoicing.settings WHERE user_id=p_user_id FOR UPDATE;
   IF v_settings_id IS NULL THEN
-    INSERT INTO invoicing.settings(user_id) VALUES(p_user_id);
-    SELECT id INTO v_settings_id FROM invoicing.settings WHERE user_id=p_user_id;
+    INSERT INTO invoicing.settings(user_id) VALUES(p_user_id) ON CONFLICT(user_id) DO NOTHING;
+    SELECT id INTO v_settings_id FROM invoicing.settings WHERE user_id=p_user_id FOR UPDATE;
   END IF;
   SELECT CASE WHEN p_kind='quote' THEN coalesce(next_quote_number,1) ELSE coalesce(next_invoice_number,1) END,
          CASE WHEN p_kind='quote' THEN coalesce(nullif(quote_prefix,''),'QT-') ELSE coalesce(nullif(invoice_prefix,''),'INV-') END
