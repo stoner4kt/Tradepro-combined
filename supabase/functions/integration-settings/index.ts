@@ -52,6 +52,8 @@ serve(async (req) => {
   if (!userId) return json({ error: "x-user-id header is required" }, 400);
 
   const admin = adminClient();
+  const { data: profile, error: profileError } = await admin.schema("public").from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (profileError || !profile) return json({ error: "Unknown tenant" }, 403);
 
   if (req.method === "GET") {
     const { data: settings, error } = await admin.from("settings").select("*").eq("user_id", userId).maybeSingle();
