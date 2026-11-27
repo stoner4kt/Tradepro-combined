@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
+import type { ReactNode } from 'react';
 
-function LegalLayout({ title, children }: { title: string; children: React.ReactNode }) {
+function LegalLayout({ title, children }: { title: string; children: ReactNode }) {
   return (
     <main className="min-h-screen bg-page px-4 py-10">
       <article className="mx-auto max-w-3xl rounded-xl border border-line bg-white p-6 shadow-sm sm:p-10">
