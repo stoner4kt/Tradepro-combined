@@ -70,7 +70,7 @@ describe('Projects API', () => {
       .post('/api/projects')
       .set({ Authorization: `Bearer ${other}` })
       .send({ clientId, title: 'Sneaky job' });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
   });
 
   it('sends a project update email (console provider)', async () => {
