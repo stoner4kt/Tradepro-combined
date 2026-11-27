@@ -12,7 +12,7 @@
 // owner through the widget API key instead.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
-import { requireIntegrationSecret, isUuid } from "../security.ts";
+import { requireIntegrationSecret, isUuid } from "./security.ts";
 
 export function adminClient(): SupabaseClient {
   const url = Deno.env.get("SUPABASE_URL");
