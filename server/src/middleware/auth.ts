@@ -17,14 +17,16 @@ export function authServiceMiddleware(authService: AuthService) {
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  const cookie = req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith('tradepro_session='))?.slice('tradepro_session='.length);
   const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
+  const bearerAllowed = process.env.ALLOW_BEARER_AUTH === 'true';
+  const tokenValue = cookie || (bearerAllowed && header?.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '');
+  if (!tokenValue) {
     sendError(res, 401, 'Missing authorization token');
     return;
   }
 
-  const token = header.slice('Bearer '.length).trim();
-  const claims = verifyUserToken(token);
+  const claims = verifyUserToken(tokenValue);
   if (!claims) {
     sendError(res, 401, 'Invalid or expired token');
     return;
