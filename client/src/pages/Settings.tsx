@@ -3,10 +3,12 @@ import * as api from '../lib/api.js';
 import type { Settings } from '../types/api.js';
 import { Alert, Button, Card, Field, Input, PageHeader, Select, Spinner, Textarea } from '../components/ui.js';
 import { useAuth } from '../contexts/AuthContext.js';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { Modal } from '../components/Modal.js';
 
 export default function SettingsPage() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -14,6 +16,10 @@ export default function SettingsPage() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePhrase, setDeletePhrase] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     void api.getSettings().then((r) => setSettings(r.settings)).catch((e) => setError(e instanceof Error ? e.message : 'Failed to load settings'));
@@ -169,7 +175,35 @@ export default function SettingsPage() {
               <Link to="/privacy" className="font-medium text-brand-600 hover:underline">Privacy notice</Link>
               <Link to="/terms" className="font-medium text-brand-600 hover:underline">Terms of service</Link>
             </div>
+            <div className="mt-5 border-t border-rose-100 pt-4">
+              <p className="text-sm font-semibold text-rose-700">Delete account</p>
+              <p className="mt-1 text-xs text-muted">Permanently removes your account and tenant-owned CRM, Reviews, Invoicing and private document files. This cannot be undone.</p>
+              <Button variant="danger" className="mt-3" onClick={() => setDeleteOpen(true)}>Delete my account</Button>
+            </div>
           </Card>
+          {deleteOpen ? (
+            <Modal title="Permanently delete account?" onClose={() => { setDeleteOpen(false); setDeletePhrase(''); setDeletePassword(''); }}>
+              <div className="space-y-4">
+                <p className="text-sm text-muted">This permanently deletes your account and associated data. Re-enter your password and type DELETE to confirm.</p>
+                <Field label="Password">
+                  <Input type="password" autoComplete="current-password" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} />
+                </Field>
+                <Field label="Type DELETE to confirm">
+                  <Input value={deletePhrase} onChange={(e) => setDeletePhrase(e.target.value)} />
+                </Field>
+                <div className="flex justify-end gap-2">
+                  <Button variant="secondary" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+                  <Button variant="danger" disabled={deleting || deletePhrase !== 'DELETE' || deletePassword.length < 10} onClick={() => {
+                    setDeleting(true);
+                    void api.deleteMyAccount(deletePassword).then(() => {
+                      logout();
+                      navigate('/login', { replace: true });
+                    }).catch((err) => setError(err instanceof Error ? err.message : 'Account deletion failed')).finally(() => setDeleting(false));
+                  }}>{deleting ? 'Deleting…' : 'Permanently delete'}</Button>
+                </div>
+              </div>
+            </Modal>
+          ) : null}
           <Card title="Privacy and account data" subtitle="Export your TradePro data or permanently delete your account.">
             <div className="flex flex-wrap gap-3">
               <Button type="button" variant="secondary" onClick={async () => {
