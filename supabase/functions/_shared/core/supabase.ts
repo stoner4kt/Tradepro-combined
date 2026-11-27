@@ -23,6 +23,7 @@
 //                              invoice-related mail
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
+import { requireIntegrationSecret, isUuid } from "../security.ts";
 
 export function adminClient(): SupabaseClient {
   const url = Deno.env.get("SUPABASE_URL");
@@ -41,10 +42,7 @@ export function adminClient(): SupabaseClient {
  * in production exactly like the ReviewFlow integration functions.
  */
 export function checkIntegrationSecret(req: Request): boolean {
-  const expected = Deno.env.get("INTEGRATION_SECRET");
-  if (!expected) return true;
-  const provided = req.headers.get("x-integration-secret");
-  return provided !== null && provided === expected;
+  return requireIntegrationSecret(req);
 }
 
 /**
@@ -54,10 +52,11 @@ export function checkIntegrationSecret(req: Request): boolean {
  * secret alone still cannot pull documents.
  */
 export function checkXApiKey(req: Request): boolean {
-  const expected = Deno.env.get("X_API_KEY");
-  if (!expected) return true;
-  const provided = req.headers.get("x-api-key");
-  return provided !== null && provided === expected;
+  const expected = Deno.env.get("X_API_KEY") || "";
+  const provided = req.headers.get("x-api-key") || "";
+  if (expected.length < 32 || expected.length !== provided.length) return false;
+  let diff = 0; for (let i=0;i<expected.length;i++) diff |= expected.charCodeAt(i)^provided.charCodeAt(i);
+  return diff === 0;
 }
 
 /** Pulls the owning CRM user id from the x-user-id header (set by the Worker). */
@@ -65,5 +64,5 @@ export function userIdFromRequest(req: Request): string | null {
   const raw = req.headers.get("x-user-id");
   if (!raw) return null;
   const id = raw.trim();
-  return id.length > 0 && id.length <= 64 ? id : null;
+  return isUuid(id) ? id : null;
 }
