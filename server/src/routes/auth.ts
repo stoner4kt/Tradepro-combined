@@ -102,6 +102,15 @@ export function authRoutes(authService: AuthService): Router {
     return res.status(204).end();
   }));
 
+  router.get('/export', requireAuth, asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user!;
+    const exported = await authService.exportUserData(user.id);
+    if (!exported) return sendError(res, 501, 'Data export is available on the connected account service only');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Disposition', 'attachment; filename="tradepro-data-export.json"');
+    return res.json(exported);
+  }));
+
   router.get(
     '/me',
     requireAuth,
