@@ -1,79 +1,68 @@
-# TradePro go-live hardening — implementation report
+# TradePro go-live hardening — review report
 
-Branch: `hardening/go-live` (based on `main`)
-Pull request: [#7 — draft](https://github.com/stoner4kt/Tradepro-combined/pull/7)
+**Review branch:** `hardening/go-live`  
+**Pull request:** [#7 — Draft go-live hardening](https://github.com/stoner4kt/Tradepro-combined/pull/7)  
+**Base:** `main`
 
-This is a substantial hardening pass, but it is **not certified production-ready**. The table distinguishes implementation from verification; migrations have not been applied to any Supabase project.
+This branch contains the broad implementation tranche from the go-live brief. It is a review candidate, not a production release. Items marked partial or pending below must not be treated as signed off.
 
-## Implementation status
+## Implemented in code
 
-| Area | Status | Implemented in this branch |
+| Area | Work included | Verification status |
 |---|---|---|
-| Database least privilege | Partial | 0007 revokes public/anon/authenticated table, sequence and function access in public/reviewflow/invoicing; grants service_role; pins function search_path; includes postgres and supabase_admin default-privilege rules. 0011 scopes privileged lead conversion and document-number RPCs. |
-| RLS and indexes | Partial | 0008 adds FK/owner indexes and wraps existing auth.uid() policy calls for init-plan caching. 0009 adds private auth/rate-limit/opt-out tables. This is not a full manual review of every policy and every function. |
-| Auth lifecycle | Partial | Hashed single-use email verification and password-reset tokens, resend verification, generic forgot-password response, password reset/change, password breach k-anonymity check, token-version revocation and logout-all. Includes reauthenticated account deletion and JSON data export; storage cleanup is attempted through Supabase Storage. Production signup now waits for email verification. |
-| Sessions and CSRF | Partial | Short-lived HS256 JWT in HttpOnly, Secure, SameSite=None production cookie; cookie domain validated against app/API origins; bearer auth disabled in production; mutating API requests require exact APP_ORIGIN, JSON and X-TradePro header. |
-| Rate limiting | Partial | Atomic Postgres rate_limit_hit RPC and hashed-key middleware on auth/public capture; edge widget, review-email and public share limits. Not every route/function has an explicit tailored limit. |
-| Tenant isolation | Partial | Scoped conversion RPC, project client/lead ownership validation, tenant-scoped project relationship reads, delete-not-found semantics, UUID validation and profile existence check for invoicing API. Full adversarial tenant test matrix remains outstanding. |
-| Invoicing integrity | Partial | 0010 guards document lifecycle and sent-line mutation; atomic idempotent payment record/delete RPCs; manual mark-paid uses payment RPC. 0014 adds atomic invoice reminder claims. |
-| Public share pages | Partial | Public HTML edge renderer replaced with a JSON share API; responsive SPA quote/invoice pages, typed quote acceptance/decline with confirmation, issuer address/tax fields, noindex/no-store headers, share expiry/revoke/regenerate API actions. UI for all share-management actions and server PDF rendering remain incomplete; browser print-to-PDF is available. |
-| Cloudflare scheduled work | Implemented, unverified | Worker Cron: every 5 minutes atomically claims/sends due ReviewFlow reviews; every 15 minutes runs invoice reminders and overdue sweep; daily cleans expired security rows. Browser review polling was removed. |
-| Edge-function security | Partial | Shared fail-closed constant-time integration-secret checks, UUID tenant IDs, cron secret verification, widget origin allowlist/consent/honeypot/rate limits, Resend Svix timestamp/signature verification and receipt dedupe, unsubscribe endpoint. Remaining edge handlers still need a full per-function security and input audit. |
-| Email compliance | Partial | Per-user daily cap on review, capture acknowledgement and invoicing sends; recipient opt-out checks; one-time unsubscribe tokens and List-Unsubscribe headers; idempotent Resend sends. Transactional invoice mail suppression policy and full consent/privacy retention policy still need review. |
-| Frontend security/accessibility | Partial | No localStorage bearer token (legacy key is cleared), cookie credentials, expired-session handling, accessible verification/recovery forms, widget labels/consent/focus handling, sandboxed email preview, responsive public share pages, privacy/terms placeholders and links, generated CSP/security headers, favicon/manifest and real 404. Global confirm/toast/modal primitives, full responsive CRM list redesign, onboarding, keyboard/screen-reader/contrast audit and complete share-management UI remain. |
-| CI and dependencies | Partial | CI workflow covers npm install/typecheck/tests/build/worker typecheck, Deno edge checks, npm audit and Gitleaks; Dependabot configured. Non-breaking dependency remediation is pending the audit run and synchronized lockfile verification. |
-| UX requirements | Partial | Auth recovery/verification, widget origin configuration, daily email cap, issuer address/tax fields, public share page and quote response. Remaining E1–E12 items need a dedicated review against the brief. |
+| Database security | Migrations 0007–0015: privilege lockdown, RLS policy wrapping/indexes, auth/rate-limit support, invoicing state machine, privileged RPC hardening, scheduled claims, public share details and email lifecycle support | Clean local Supabase migration/diagnostic job is still running; not applied to any remote project |
+| Authentication | HttpOnly 8-hour session cookie, SameSite=Lax, Secure in production, CSRF origin/referer + JSON + `X-TradePro`, logout/logout-all and token-version revocation | Server typecheck and unit tests passed in dependency-remediation workflow |
+| Auth lifecycle | Email verification, resend, forgot/reset password, password change, generic account-enumeration responses and password policy checks | Code and route tests included; live Resend delivery not tested |
+| Rate limiting | Postgres-backed IP/email buckets for auth, per-user authenticated request quota, public share/webhook/widget limits and per-tenant email caps | Unit/route checks included; live concurrency and production load not tested |
+| Tenant boundaries | Owner-scoped queries, relationship ownership checks, integration profile checks and SQL diagnostics for grants, RLS, tenant predicates and function search paths | Partial: no complete live tenant-isolation matrix or staging database sign-off |
+| Invoicing | Atomic payment RPC, row locking, payment/document integrity and status-transition triggers; non-draft documents are read-only and duplicate-as-draft is available | Migration and application code included; concurrency/load behaviour not tested against a remote database |
+| Scheduled jobs | Cloudflare Worker Cron handlers for ReviewFlow, invoice reminders/overdue work and daily deep-health/security cleanup | Code/config only; no Cloudflare deployment or scheduled execution performed |
+| Edge security | Shared integration-secret checks, tenant validation, public share hardening, no-JWT gateway configuration and deployment/smoke scripts | Deno checks passed in the dependency-remediation workflow; live gateway smoke test not run |
+| Resend webhook | Svix HMAC verification, timestamp window, multiple signatures, unique delivery claim, monotonic status updates and rate limiting | Deterministic Svix test vectors added; CI run still pending |
+| Privacy | Authenticated account data export and password-confirmed account deletion with private invoice storage cleanup | Code included; not exercised against a real Supabase account/storage bucket |
+| Frontend security/accessibility | Cookie-based API calls, route lazy loading, render error boundary, modal focus trap/restore, improved confirmations, privacy links and data-management settings | Client build passed in dependency-remediation workflow; full WCAG/mobile audit remains outstanding |
+| Dependency remediation | React Router 7.18.7, Zod 4.6.7, patched transitive `undici` and `esbuild` overrides, refreshed npm lockfile and Dependabot updates | Dependency workflow passed install, typecheck, tests, build, Worker typecheck, Deno checks and reported **0 vulnerabilities** |
+| Documentation | Setup addendum, go-live checklist, privacy/terms review placeholders and implementation report | Committed; legal text requires owner/counsel completion |
 
-## Migration order
+## Remaining work and launch blockers
 
-Apply only in a disposable/staging Supabase project first, after reviewing each SQL file:
+1. **Tenant-isolation sign-off:** complete a table-by-table review of every CRM, ReviewFlow and Invoicing read/write path; run two-tenant negative tests against staging; inspect RLS policies and grants on the actual Supabase project.
+2. **Public capture:** optional Cloudflare Turnstile verification and a complete acknowledgement-email opt-out/compliance pass remain outstanding.
+3. **Pagination and scale:** list endpoints still need consistent cursor/limit pagination and load testing.
+4. **UX scope:** onboarding checklist, full mobile-card treatment across all major lists, complete accessibility audit, global toast/confirmation consistency and final app-shell polish remain partial.
+5. **Legal:** the Privacy and Terms pages are clearly marked draft placeholders. Replace them with reviewed legal copy and verified contact details before launch.
+6. **Observability:** configure production alerting/error monitoring and verify operational dashboards; no Sentry/monitoring project was configured.
+7. **Operations:** review backup/restore and retention procedures, confirm Resend DNS (SPF/DKIM/DMARC), and verify Cloudflare custom domains/secrets before deployment.
+8. **Live verification:** run the edge no-JWT smoke script against staging; verify Resend webhook delivery, scheduled jobs, auth email delivery, storage deletion and payment concurrency.
 
-1. `0007_security_lockdown.sql`
-2. `0008_rls_and_indexes.sql`
-3. `0009_auth_support.sql`
-4. `0010_invoicing_integrity.sql`
-5. `0011_rpc_hardening.sql`
-6. `0012_reviewflow_scheduled_claims.sql`
-7. `0013_public_document_details.sql`
-8. `0014_invoice_reminder_claims.sql`
-9. `0015_auth_and_email_lifecycle.sql`
+## Required production configuration
 
-**Do not apply these migrations to production yet.** 0007 changes schema privileges broadly. Confirm all API/edge paths use service_role as intended and prepare a grant rollback before applying. Confirm the new columns and unique indexes against the actual project state.
+Production startup now fails closed unless the required secrets and origins are configured. Set these in the Cloudflare Worker dashboard, not in committed files:
 
-## Production configuration
-
-Set Worker values in Cloudflare and Supabase Edge Function secrets separately:
-
-- `NODE_ENV=production`
-- `CORS_ORIGIN` exactly equal to `APP_ORIGIN`
-- `APP_ORIGIN` and `API_ORIGIN` as HTTPS subdomains covered by `COOKIE_DOMAIN` (use custom domains on the same registrable domain)
-- `JWT_SECRET`, `INTEGRATION_SECRET`, `CRON_SECRET` at least 32 random characters
+- `JWT_SECRET` (at least 32 random characters)
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`
-- `RESEND_API_KEY`, `RESEND_FROM_EMAIL` on a verified sending domain, and `RESEND_WEBHOOK_SECRET=whsec_...`
-- `SV_API_KEY` at least 32 characters when Invoicing is enabled
-- Set matching `INTEGRATION_SECRET` on Supabase Edge Functions. If `REVIEWFLOW_SECRET` or `INVOICING_SECRET` are set on the Worker, they must match it.
-- Set `CRON_SECRET` on both the Worker and `invoicing-cron`.
-- Set `SUPABASE_SERVICE_ROLE_KEY` and `RESEND_WEBHOOK_SECRET` in the Supabase project secrets.
-- Set `ALLOW_BEARER_AUTH=false` in production.
+- `APP_ORIGIN`, `API_ORIGIN`, `CORS_ORIGIN` (exactly equal to APP_ORIGIN), `COOKIE_DOMAIN` (must cover both HTTPS hosts)
+- `INTEGRATION_SECRET`, `CRON_SECRET` (at least 32 random characters)
+- `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_WEBHOOK_SECRET` (`whsec_...`)
+- If Invoicing is enabled: `INVOICING_URL`, `INVOICING_SECRET`, `SV_API_KEY`
 
-Never commit real values to Git.
+Set matching Supabase Edge Function secrets separately, including `SUPABASE_SERVICE_ROLE_KEY`, `INTEGRATION_SECRET`, `RESEND_WEBHOOK_SECRET` and `X_API_KEY`. The Worker-side `SV_API_KEY` is forwarded as `x-api-key`.
 
-## Verification status
+The Pages app and API must use custom HTTPS domains on the same registrable domain for the SameSite=Lax cookie model.
 
-The GitHub Actions CI workflow is triggered by this branch. Check PR #7's Checks tab for the latest run result; earlier runs exposed issues which were corrected and re-run. The final green status must be confirmed before merge. No local checkout/runtime was available in this session, and no live Supabase, Cloudflare or Resend environment was modified. No migrations were executed, no production deploy was performed, and no live credentials were accessed.
+## Migration order and safety
 
-## Manual staging verification required
+Apply pending migrations in numeric order through 0015, only after reviewing the current remote migration history. In particular, migration 0007 changes schema/table/function privileges. Do not apply it to production until the service-role access model for every Worker and Edge Function has been checked.
 
-- Apply migrations in order to a disposable Supabase project.
-- Run `supabase/tests/security_checks.sql` and resolve every returned row.
-- Run Supabase advisors and inspect all RLS policies, SECURITY DEFINER routines and grants.
-- Test login, verification, resend, forgot/reset, change-password, logout-all, cookie/CSRF and rate-limit behaviour across the configured Pages/Worker custom domains.
-- Test tenant A cannot read/update/delete tenant B leads, clients, projects, documents, payments, settings, captures, logs or edge-function resources.
-- Test concurrent/idempotent payments, reversals, invoice reminder claims and scheduled review claims.
-- Test Resend Svix valid/invalid/replayed/stale signatures, opt-out and webhook retry semantics.
-- Verify Cloudflare Cron execution, secrets, logs, Resend domain authentication and email deliverability.
-- Complete accessibility, UX and dependency review before marking this PR ready.
+The CI workflow now boots a disposable local Supabase stack, applies migrations from a clean database and runs `supabase/tests/security_checks.sql`. That local run is separate from the connected production project. No remote Supabase migration or Cloudflare deployment has been performed from this branch.
+
+## Verification record
+
+- Dependency-remediation workflow: `npm ci`, typecheck, server tests, client/server build, Worker typecheck and Deno checks passed; `npm audit` reported **0 vulnerabilities**; updated package manifests and lockfile were committed to this branch.
+- The main CI run on the lockfile-updated branch is in progress. It includes Svix tests, full dependency audit, Gitleaks and the local Supabase migration/RLS diagnostic job.
+- No live Supabase data, secrets, schema or Cloudflare Worker settings were changed.
+- No PR merge or production deployment was performed.
 
 ## Rollback
 
-Reverting Git does not reverse database changes. Prepare explicit GRANT/ALTER DEFAULT PRIVILEGES rollback SQL based on pre-migration grants before applying 0007. Review data/schema changes separately; drop only new indexes/tables/columns after confirming no production data depends on them.
+Reverting Git does not reverse database grants, default privileges, triggers or data changes. Before applying migrations remotely, prepare and peer-review explicit rollback SQL for the exact target project's current grants and schema state. Keep a verified backup and a tested restore path. Do not assume a Git revert is a database rollback.
