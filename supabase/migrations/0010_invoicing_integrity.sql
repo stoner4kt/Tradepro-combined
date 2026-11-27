@@ -28,7 +28,7 @@ BEGIN
           OR (OLD.status='sent' AND NEW.status IN ('accepted','declined','void'))
         WHEN 'invoice' THEN (OLD.status='draft' AND NEW.status IN ('issued','void'))
           OR (OLD.status='issued' AND NEW.status IN ('partially_paid','paid','overdue','void'))
-          OR (OLD.status='partially_paid' AND NEW.status IN ('paid','overdue','void'))
+          OR (OLD.status='partially_paid' AND NEW.status IN ('issued','paid','overdue','void'))
           OR (OLD.status='overdue' AND NEW.status IN ('partially_paid','paid','void'))
         ELSE false END;
       IF NOT allowed THEN RAISE EXCEPTION 'invalid document status transition'; END IF;
@@ -114,7 +114,7 @@ BEGIN
   IF NOT FOUND OR d.status='paid' OR d.status='void' THEN RAISE EXCEPTION 'payment cannot be deleted'; END IF;
   DELETE FROM invoicing.payments WHERE id=p_payment_id AND user_id=p_user_id;
   SELECT coalesce(sum(amount_minor),0) INTO paid FROM invoicing.payments WHERE document_id=p.document_id AND user_id=p_user_id;
-  next_status := CASE WHEN paid >= d.total_minor THEN 'paid' WHEN paid > 0 THEN 'partially_paid' ELSE 'issued' END;
+  next_status := CASE WHEN paid >= d.total_minor THEN 'paid' WHEN d.status='overdue' THEN 'overdue' WHEN paid > 0 THEN 'partially_paid' ELSE 'issued' END;
   UPDATE invoicing.documents SET amount_paid_minor=paid,status=next_status,updated_at=now()
     WHERE id=p.document_id AND user_id=p_user_id;
   RETURN true;
