@@ -7,14 +7,16 @@ export interface UserClaims {
   email: string;
   full_name?: string;
   business_name?: string;
+  token_version?: number;
 }
 
-export function signUserToken(user: Pick<User, 'id' | 'email' | 'fullName' | 'businessName'>): string {
+export function signUserToken(user: Pick<User, 'id' | 'email' | 'fullName' | 'businessName'>, tokenVersion = 0): string {
   const claims: UserClaims = {
     sub: user.id,
     email: user.email,
     full_name: user.fullName,
     business_name: user.businessName,
+    token_version: tokenVersion,
   };
   return jwt.sign(claims, config.jwtSecret, { algorithm: 'HS256', issuer: 'tradepro-api', audience: 'tradepro-client', expiresIn: '8h' });
 }
