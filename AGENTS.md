@@ -126,3 +126,14 @@ schema, `invoicing-*` edge functions, `client/src/pages/Invoicing.tsx`, and
 can ship standalone by stripping the `user_id`/integration headers and the
 `/api/invoicing/*` worker proxy (`migrations/0005` is the Tradepro-only CRM
 glue and must NOT be copied).
+
+## Go-live security conventions
+
+- Production browser sessions use the `tradepro_session` HttpOnly cookie; never persist JWTs in localStorage or return them in JSON. Mutating API calls must include credentials, JSON content type, the exact `APP_ORIGIN` Origin and `X-TradePro`.
+- Production requires exact HTTPS `CORS_ORIGIN=APP_ORIGIN`, same-registrable-domain `APP_ORIGIN`/`API_ORIGIN` covered by `COOKIE_DOMAIN`, 32+ character JWT/integration/cron secrets, Supabase service and anon keys, and Resend secrets. See `server/.env.example`, `server/.dev.vars.example`, `server/wrangler.jsonc` and `docs/HARDENING-PR.md`.
+- All database access is service-role scoped by authenticated `user_id`; never trust an incoming `x-user-id` without an authenticated integration secret. Public widget requests require the widget key, exact owner allowlisted HTTPS Origin, consent, honeypot/minimum-fill checks and Postgres rate limits.
+- Rate limits and scheduled claims live in Postgres, never Worker memory. ReviewFlow and invoice jobs run from Cloudflare Cron; keep claims atomic and sends idempotent.
+- Invoice payments must use the atomic `record_payment` RPC with an idempotency key. Do not update `amount_paid_minor` directly. Non-draft document edits are blocked by database lifecycle triggers.
+- Review email sends must enforce per-user daily caps, recipient opt-outs and signed one-time unsubscribe links. Invoice transactional mail is handled separately.
+- Do not edit applied migrations 0001–0006. Add idempotent migrations 0007 onward and document the exact order and rollback.
+- Before declaring a hardening change complete, add a regression test and run the relevant typecheck/tests/build. Never claim a live Supabase/Cloudflare/Resend check unless it was actually run.
