@@ -88,6 +88,8 @@ export interface Settings {
   replyToEmail: string;
   currency: string;
   emailNotifications: boolean;
+  allowedOrigins?: string[];
+  dailyEmailCap?: number;
   createdAt: string;
   updatedAt: string;
 }
