@@ -122,6 +122,11 @@ export function productionConfigErrors(): string[] {
   ];
   const missing = required.filter((key) => !process.env[key]?.trim());
   const errors = missing.map((key) => `Missing required environment variable: ${key}`);
+  const integrationSecret = process.env.INTEGRATION_SECRET || '';
+  if (integrationSecret.length < 32) errors.push('INTEGRATION_SECRET must be at least 32 characters');
+  if ((process.env.CRON_SECRET || '').length < 32) errors.push('CRON_SECRET must be at least 32 characters');
+  if (process.env.INVOICING_URL && (process.env.SV_API_KEY || '').length < 32) errors.push('SV_API_KEY must be at least 32 characters when Invoicing is enabled');
+  if (!(process.env.RESEND_WEBHOOK_SECRET || '').startsWith('whsec_')) errors.push('RESEND_WEBHOOK_SECRET must be a Resend Svix signing secret');
   const secret = process.env.JWT_SECRET || '';
   if (secret.length < 32 || secret === 'dev-secret-change-me-in-production') {
     errors.push('JWT_SECRET must be at least 32 characters and not a development default');
