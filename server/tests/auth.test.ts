@@ -49,7 +49,7 @@ describe('Auth API', () => {
   });
 
   it('rejects duplicate registration without disclosing account details', async () => {
-    const res = await request(app).post('/api/auth/register').send({ email: 'plumber@example.com', password: PASSWORD });
+    const res = await request(app).post('/api/auth/register').send({ email: 'plumber@example.com', password: PASSWORD, fullName: 'Bob the Plumber', businessName: 'Bob Plumbing', businessType: 'plumbing' });
     expect(res.status).toBe(409);
     expect(res.body.error.message).toBe('Unable to register with these details');
   });
