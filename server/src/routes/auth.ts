@@ -4,12 +4,15 @@ import { asyncHandler, sendError } from '../lib/http.js';
 import { loginSchema, registerSchema, profileUpdateSchema } from '../utils/validation.js';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import type { Store } from '../store/Store.js';
+import { rateLimit } from '../middleware/rateLimit.js';
+import { config } from '../utils/config.js';
 
 export function authRoutes(authService: AuthService): Router {
   const router = Router();
 
   router.post(
     '/register',
+    rateLimit({ scope: 'auth-register', windowSeconds: 3600, max: 5, failClosed: config.isProduction }),
     asyncHandler(async (req, res) => {
       const parsed = registerSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -25,6 +28,7 @@ export function authRoutes(authService: AuthService): Router {
 
   router.post(
     '/login',
+    rateLimit({ scope: 'auth-login', windowSeconds: 900, max: 5, failClosed: config.isProduction }),
     asyncHandler(async (req, res) => {
       const parsed = loginSchema.safeParse(req.body);
       if (!parsed.success) {
