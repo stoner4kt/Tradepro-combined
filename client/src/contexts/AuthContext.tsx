@@ -22,22 +22,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { user } = await api.me();
       setUser(user);
     } catch {
-      api.setToken(null);
       setUser(null);
     }
   }, []);
 
   useEffect(() => {
-    if (!api.getToken()) {
-      setLoading(false);
-      return;
-    }
     void refreshUser().finally(() => setLoading(false));
   }, [refreshUser]);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.login(email, password);
-    api.setToken(res.token);
     setUser(res.user);
   }, []);
 
@@ -48,8 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    api.setToken(null);
-    setUser(null);
+    void api.logout().finally(() => setUser(null));
   }, []);
 
   const value = useMemo(
