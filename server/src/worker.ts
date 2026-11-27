@@ -19,7 +19,7 @@ async function scheduled(controller: ScheduledController, env: WorkerEnv): Promi
   const supabaseUrl = env.SUPABASE_URL || config.supabase.url;
   const serviceKey = env.SUPABASE_SERVICE_KEY || config.supabase.serviceKey;
   if (controller.cron === '*/5 * * * *') {
-    const base=(config.reviewflow.url||supabaseUrl).replace(/\\/+$/,'');
+    const base=(config.reviewflow.url||supabaseUrl).replace(/\/+$/,'');
     const secret=config.reviewflow.secret;
     if(!base||secret.length<32)throw new Error('ReviewFlow scheduled sender is not configured');
     const response=await fetch(`${base}/functions/v1/integration-send-review`,{method:'POST',headers:{'x-integration-secret':secret,'Content-Type':'application/json'},body:JSON.stringify({mode:'scheduled'})});
@@ -27,7 +27,7 @@ async function scheduled(controller: ScheduledController, env: WorkerEnv): Promi
     return;
   }
   if (controller.cron === '*/15 * * * *') {
-    const base = (env.INVOICING_URL || config.invoicing.url || supabaseUrl).replace(/\\/+$/, '');
+    const base = (env.INVOICING_URL || config.invoicing.url || supabaseUrl).replace(/\/+$/, '');
     const secret = env.CRON_SECRET || process.env.CRON_SECRET || '';
     if (!base || secret.length < 32) throw new Error('Invoicing cron is not configured');
     const response = await fetch(`${base}/functions/v1/invoicing-cron`, {
@@ -46,7 +46,7 @@ async function scheduled(controller: ScheduledController, env: WorkerEnv): Promi
   }
   if (controller.cron === '0 3 * * *') {
     if (!supabaseUrl || !serviceKey) throw new Error('Supabase cleanup is not configured');
-    const response = await fetch(`${supabaseUrl.replace(/\\/+$/, '')}/rest/v1/rpc/cleanup_security_rows`, {
+    const response = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/rpc/cleanup_security_rows`, {
       method: 'POST',
       headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
       body: '{}',
