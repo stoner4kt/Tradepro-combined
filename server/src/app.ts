@@ -3,12 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
+import { timingSafeEqual } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { config, productionConfigErrors } from './utils/config.js';
 import { logger } from './utils/logger.js';
 import { createFreshStore } from './store/index.js';
 import type { Store } from './store/Store.js';
+import { SupabaseStore } from './store/SupabaseStore.js';
 import { AuthService } from './services/authService.js';
 import { authServiceMiddleware } from './middleware/auth.js';
 import { authRoutes } from './routes/auth.js';
@@ -70,6 +72,24 @@ export function createApp(): express.Express {
   app.get('/api/health', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json({ ok: true });
+  });
+
+  app.get('/api/health/deep', async (req, res) => {
+    const expected = config.cronSecret;
+    const provided = req.get('x-cron-secret') || '';
+    const valid = expected.length >= 32 && provided.length === expected.length &&
+      timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+    if (!valid) { res.status(404).json({ error: { message: 'Not found' } }); return; }
+    if (!config.supabase.configured) { res.status(503).json({ ok: false }); return; }
+    try {
+      const { error } = await new SupabaseStore().sb.from('profiles').select('id').limit(1);
+      if (error) throw error;
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ ok: true });
+    } catch (err) {
+      logger.error('Deep health check failed', { error: (err as Error).message });
+      res.status(503).json({ ok: false });
+    }
   });
 
   app.get('/api/health/deep', async (req, res) => {
