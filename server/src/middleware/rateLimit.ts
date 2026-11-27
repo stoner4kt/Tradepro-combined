@@ -10,9 +10,11 @@ const client = config.supabase.configured
 export function rateLimit(options:{scope:string;windowSeconds:number;max:number;failClosed?:boolean}) {
  return async (req:Request,res:Response,next:NextFunction):Promise<void>=>{
   if(!client){if(options.failClosed){sendError(res,503,'Rate limiting unavailable');return;}next();return;}
-  const forwarded=String(req.headers['cf-connecting-ip']||req.headers['x-forwarded-for']||req.socket.remoteAddress||'unknown').split(',')[0].trim();
+  const forwarded=String(req.headers['cf-connecting-ip']||req.socket.remoteAddress||'unknown').slice(0,64);
   const email=String(req.body?.email||'').trim().toLowerCase();
-  const key=`${options.scope}:${forwarded}:${email}`.slice(0,512);
+  const rawKey=`${options.scope}:${forwarded}:${email}`;
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(rawKey));
+  const key=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
   try{
    const {data,error}=await client.rpc('rate_limit_hit',{p_key:key,p_window_seconds:options.windowSeconds,p_max:options.max});
    if(error)throw error;
