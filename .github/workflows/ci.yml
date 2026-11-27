@@ -42,3 +42,28 @@ jobs:
       - run: npm ci
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+
+  supabase-migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase stack
+        run: supabase start --exclude studio,mailpit,edge-runtime
+      - name: Apply all migrations from a clean database
+        run: supabase db reset
+      - name: Run tenant privilege and RLS diagnostics
+        shell: bash
+        run: |
+          DB_URL="$(supabase status -o env | grep '^DB_URL=' | cut -d '=' -f2- | tr -d '"')"
+          test -n "$DB_URL"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -At -f supabase/tests/security_checks.sql > /tmp/security-checks.txt
+          if [[ -s /tmp/security-checks.txt ]]; then
+            cat /tmp/security-checks.txt
+            echo "Security diagnostics returned findings." >&2
+            exit 1
+          fi
+          echo "Security diagnostics passed with zero findings."
