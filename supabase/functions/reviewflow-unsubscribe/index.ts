@@ -13,10 +13,9 @@ serve(async(req:Request):Promise<Response>=>{
  const tokenHash=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
  const {data:row,error}=await admin.from("email_opt_out_tokens").select("id,user_id,email,expires_at,used_at").eq("token_hash",tokenHash).maybeSingle();
  if(error||!row||row.used_at||Date.parse(row.expires_at)<=Date.now())return html("Link expired","This unsubscribe link is invalid or has already been used.",400);
- const {data:consumed,error:consumeError}=await admin.from("email_opt_out_tokens").update({used_at:new Date().toISOString()}).eq("id",row.id).is("used_at",null).select("id").maybeSingle();
- if(consumeError||!consumed)return html("Link expired","This unsubscribe link has already been used.",400);
  const {data:existing,error:lookupError}=await admin.from("email_opt_outs").select("id").eq("user_id",row.user_id).eq("email",String(row.email).toLowerCase()).maybeSingle();
  if(lookupError)return html("Unable to unsubscribe","Please try again later.",503);
  if(!existing){const {error:insertError}=await admin.from("email_opt_outs").insert({user_id:row.user_id,email:String(row.email).toLowerCase()});if(insertError&&insertError.code!=="23505")return html("Unable to unsubscribe","Please contact the business directly.",503);}
+ await admin.from("email_opt_out_tokens").update({used_at:new Date().toISOString()}).eq("id",row.id).is("used_at",null);
  return html("Unsubscribed","You will no longer receive automated review-request emails from this business.");
 });
