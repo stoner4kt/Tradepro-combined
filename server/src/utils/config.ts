@@ -127,6 +127,7 @@ export function productionConfigErrors(): string[] {
   if (process.env.ALLOW_BEARER_AUTH === 'true') errors.push('ALLOW_BEARER_AUTH must be false in production');
   if (integrationSecret.length < 32) errors.push('INTEGRATION_SECRET must be at least 32 characters');
   if ((process.env.CRON_SECRET || '').length < 32) errors.push('CRON_SECRET must be at least 32 characters');
+  if (process.env.INVOICING_URL && (process.env.INVOICING_SECRET || '').length < 32) errors.push('INVOICING_SECRET must be at least 32 characters when Invoicing is enabled');
   if (process.env.INVOICING_URL && (process.env.SV_API_KEY || '').length < 32) errors.push('SV_API_KEY must be at least 32 characters when Invoicing is enabled');
   if (!(process.env.RESEND_WEBHOOK_SECRET || '').startsWith('whsec_')) errors.push('RESEND_WEBHOOK_SECRET must be a Resend Svix signing secret');
   const secret = process.env.JWT_SECRET || '';
