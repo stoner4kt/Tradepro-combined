@@ -42,7 +42,8 @@ export function projectsRoutes(store: Store): Router {
             const userId = (req as AuthedRequest).user!.id;
 
       const client = await store.getClient(userId, parsed.data.clientId);
-      if (!client) return sendError(res, 400, 'Client not found');
+      if (!client) return sendError(res, 404, 'Client not found');
+      if (parsed.data.leadId && !(await store.getLead(userId, parsed.data.leadId))) return sendError(res, 404, 'Lead not found');
 
       const project = await store.createProject(userId, parsed.data);
       res.status(201).json({ project });
@@ -57,6 +58,8 @@ export function projectsRoutes(store: Store): Router {
             const userId = (req as AuthedRequest).user!.id;
       const existing = await store.getProject(userId, req.params.id);
       if (!existing) return sendError(res, 404, 'Project not found');
+      if (parsed.data.clientId && !(await store.getClient(userId, parsed.data.clientId))) return sendError(res, 404, 'Client not found');
+      if (parsed.data.leadId && !(await store.getLead(userId, parsed.data.leadId))) return sendError(res, 404, 'Lead not found');
 
       const project = await store.updateProject(userId, req.params.id, parsed.data);
 
