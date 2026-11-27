@@ -96,6 +96,33 @@ export class AuthService {
     return exported;
   }
 
+  async deleteAccount(userId: string, password: string): Promise<void> {
+    if (!this.admin) throw new Error('Account deletion requires the connected account service');
+    if (!password || password.length > 128) throw new Error('Re-authentication failed');
+    const { data: account, error: accountError } = await this.admin.auth.admin.getUserById(userId);
+    if (accountError || !account?.user?.email) throw new Error('Re-authentication failed');
+    const { error: reauthError } = await this.admin.auth.signInWithPassword({
+      email: account.user.email,
+      password,
+    });
+    if (reauthError) throw new Error('Re-authentication failed');
+
+    // Remove private invoice PDFs owned by this user before cascading auth.users.
+    const { data: objects, error: objectsError } = await this.admin.schema('storage').from('objects')
+      .select('name').eq('bucket_id', 'invoicing-documents')
+      .or(`owner_id.eq.${userId},name.like.${userId}/%`);
+    if (objectsError) throw new Error('Unable to remove account files');
+    const paths = (objects ?? []).map((item: { name: string }) => item.name);
+    if (paths.length) {
+      const { error: removeError } = await this.admin.storage.from('invoicing-documents').remove(paths);
+      if (removeError) throw new Error('Unable to remove account files');
+    }
+
+    // All tenant tables reference auth.users with ON DELETE CASCADE.
+    const { error: deleteError } = await this.admin.auth.admin.deleteUser(userId);
+    if (deleteError) throw new Error('Unable to delete account');
+  }
+
   async allowAuthenticatedRequest(userId: string): Promise<{ allowed: boolean; retryAfter: number }> {
     if (!this.admin) return { allowed: true, retryAfter: 0 };
     try {
