@@ -43,6 +43,23 @@ export function authRoutes(authService: AuthService): Router {
     }),
   );
 
+  router.get('/export', requireAuth, asyncHandler(async (req,res) => {
+    const user=(req as AuthedRequest).user!;
+    const data=await authService.exportUserData(user.id);
+    res.setHeader('Cache-Control','no-store');
+    res.setHeader('Content-Disposition','attachment; filename="tradepro-account-export.json"');
+    res.json(data);
+  }));
+
+  router.delete('/account', requireAuth, rateLimit({scope:'auth-delete-account',windowSeconds:3600,max:2,failClosed:config.isProduction}), asyncHandler(async(req,res) => {
+    const user=(req as AuthedRequest).user!;
+    const password=typeof req.body?.password==='string'?req.body.password:'';
+    try { await authService.deleteAccount(user.id,password); }
+    catch { return sendError(res,400,'Unable to delete account. Check your password and try again.'); }
+    res.clearCookie('tradepro_session',{httpOnly:true,secure:config.isProduction,sameSite:config.isProduction?'none':'lax',domain:config.cookieDomain||undefined,path:'/'});
+    return res.status(204).end();
+  }));
+
   router.post('/logout', (req, res) => { res.clearCookie('tradepro_session', { httpOnly: true, secure: config.isProduction, sameSite: config.isProduction ? 'none' : 'lax', domain: config.cookieDomain || undefined, path: '/' }); res.status(204).end(); });
 
 
