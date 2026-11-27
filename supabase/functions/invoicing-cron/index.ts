@@ -118,14 +118,10 @@ serve(async (req: Request): Promise<Response> => {
   if (mode === "reminders") {
     // Invoices overdue (due_date < today) that were sent more than grace_days
     // ago and haven't been fully paid.
-    const { data, error } = await admin
-      .from("documents")
-      .select("id,user_id,number,status,token,title,currency,total_minor,subtotal_minor,amount_paid_minor,due_date,customer_snapshot")
-      .eq("kind", "invoice")
-      .in("status", ["issued", "partially_paid", "overdue"])
-      .lt("due_date", today)
-      .or(`sent_at.lt.${cutoff},sent_at.is.null`);
-    if (error) return json({ error: error.message }, 500);
+    const { data, error } = dryRun
+      ? await admin.from("documents").select("id,user_id,number,status,token,title,currency,total_minor,subtotal_minor,amount_paid_minor,due_date,customer_snapshot").eq("kind","invoice").in("status",["issued","partially_paid","overdue"]).lt("due_date",today).or(`sent_at.lt.${cutoff},sent_at.is.null`)
+      : await admin.rpc("claim_due_invoice_reminders",{p_grace_days:graceDays,p_limit:100});
+    if (error) return json({ error: "Unable to claim reminder work" }, 500);
     const docs = (data ?? []) as DocRow[];
 
     // Group by user to resolve settings once per reminder email.
@@ -145,8 +141,15 @@ serve(async (req: Request): Promise<Response> => {
         settings = s as SettingsRow | null;
       } catch { /* keep null */ }
       for (const doc of userDocs) {
-        const result = await sendReminderEmail(doc, settings ?? { business_name: "", email: "", reply_to_email: "", business_email: "" });
+        let result: {status:string;message_id:string|null;error?:string};
+        try { result = await sendReminderEmail(doc, settings ?? { business_name: "", email: "", reply_to_email: "", business_email: "" }); }
+        catch (err) { result = {status:"failed",message_id:null,error:(err as Error).message}; }
         if (dryRun) continue;
+        if (result.status === "sent") {
+          await admin.from("reminder_claims").update({sent_at:new Date().toISOString()}).eq("document_id",doc.id).eq("due_date",doc.due_date);
+        } else {
+          await admin.from("reminder_claims").delete().eq("document_id",doc.id).eq("due_date",doc.due_date);
+        }
         const ev = {
           user_id: userId,
           document_id: doc.id,
