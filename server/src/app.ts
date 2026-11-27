@@ -3,7 +3,7 @@ import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { NextFunction, Request, Response } from 'express';
-import { config } from './utils/config.js';
+import { config, productionConfigErrors } from './utils/config.js';
 import { logger } from './utils/logger.js';
 import { createFreshStore } from './store/index.js';
 import type { Store } from './store/Store.js';
@@ -23,28 +23,20 @@ export function createApp(): express.Express {
   const app = express();
 
   app.disable('x-powered-by');
-  app.use(cors({ origin: config.corsOrigin, credentials: true }));
-  app.use(express.json({ limit: '1mb' }));
+  const startupErrors = productionConfigErrors();
+  if (startupErrors.length) {
+    logger.error('Production configuration invalid', { errors: startupErrors });
+    app.use((_req, res) => res.status(503).json({ error: { message: 'Service temporarily unavailable' } }));
+    return app;
+  }
+  app.use(cors({ origin: config.corsOrigin || false, credentials: true, optionsSuccessStatus: 204 }));
+  app.use((_req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
+  app.use(express.json({ limit: '256kb' }));
 
   // Health
   app.get('/api/health', (_req, res) => {
-    res.json({
-      ok: true,
-      service: 'tradepro-crm',
-      version: '1.0.0',
-      store: config.supabase.configured ? 'supabase' : 'local',
-      email: config.resend.configured ? 'resend' : 'console',
-      env: {
-        SUPABASE_URL: Boolean(process.env.SUPABASE_URL),
-        SUPABASE_ANON_KEY: Boolean(process.env.SUPABASE_ANON_KEY),
-        SUPABASE_SERVICE_KEY: Boolean(process.env.SUPABASE_SERVICE_KEY),
-        RESEND_API_KEY: Boolean(process.env.RESEND_API_KEY),
-        REVIEWFLOW_URL: Boolean(process.env.REVIEWFLOW_URL),
-        REVIEWFLOW_SECRET: Boolean(process.env.REVIEWFLOW_SECRET),
-        NODE_ENV: process.env.NODE_ENV ?? '(unset)',
-        CORS_ORIGIN: process.env.CORS_ORIGIN ?? '(unset)',
-      },
-    });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ ok: true });
   });
 
   // Single store instance shared by auth + all resource routes.
