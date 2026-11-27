@@ -30,7 +30,7 @@ serve(async(req:Request):Promise<Response>=>{
   return json({error:"Invalid submission"},400);
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||first.length>120||last.length>120||phone.length>40||service.length>120||message.length>2000)
   return json({error:"Invalid submission"},400);
- let admin:SupabaseClient;
+ let admin:SupabaseClient<any, any>;
  try{admin=adminClient();}catch{return json({error:"Service unavailable"},503);}
  const {data:owner,error:ownerError}=await admin.from("settings").select("user_id,widget_api_key").eq("widget_api_key",widgetKey).maybeSingle();
  if(ownerError||!owner)return json({error:"Invalid widget request"},401);
