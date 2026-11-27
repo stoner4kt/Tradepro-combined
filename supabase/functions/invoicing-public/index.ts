@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { adminClient } from "../_shared/invoicing/supabase.ts";
 
 const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"content-type","Access-Control-Allow-Methods":"GET, POST, OPTIONS"};
-function json(data:unknown,status=200):Response{return new Response(JSON.stringify(data),{status,headers:{...CORS,"Content-Type":"application/json","Cache-Control":"no-store","X-Robots-Tag":"noindex"}});}
+function json(data:unknown,status=200):Response{return new Response(JSON.stringify(data),{status,headers:{...CORS,"Content-Type":"application/json","Cache-Control":"no-store","X-Robots-Tag":"noindex","X-Content-Type-Options":"nosniff","Referrer-Policy":"no-referrer"}});}
 async function digest(value:string):Promise<string>{
  const d=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));
  return Array.from(new Uint8Array(d),b=>b.toString(16).padStart(2,"0")).join("");
@@ -38,6 +38,6 @@ serve(async(req:Request):Promise<Response>=>{
  }
  const {data:lines,error:lineError}=await admin.from("document_lines").select("description,quantity,unit_price_minor,sort_order").eq("document_id",doc.id).eq("user_id",doc.user_id).order("sort_order",{ascending:true});
  if(lineError)return json({error:"Unable to load document"},500);
- const {data:issuer}=await admin.from("settings").select("business_name,email,phone,business_address,tax_number,bank_details,notes,currency,locale").eq("user_id",doc.user_id).maybeSingle();
+ const {data:issuer}=await admin.from("settings").select("business_name,email,phone,business_address,tax_number,bank_details,currency,locale").eq("user_id",doc.user_id).maybeSingle();
  return json({document:{kind:doc.kind,number:doc.number,status:doc.status,customer_snapshot:doc.customer_snapshot,issue_date:doc.issue_date,due_date:doc.due_date,quote_valid_until:doc.quote_valid_until,title:doc.title,notes:doc.notes,currency:doc.currency,subtotal_minor:doc.subtotal_minor,tax_minor:doc.tax_minor,total_minor:doc.total_minor,amount_paid_minor:doc.amount_paid_minor,expires_at:doc.expires_at},lines:lines||[],issuer:issuer||{}});
 });
