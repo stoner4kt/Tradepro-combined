@@ -88,28 +88,9 @@ export const resetPassword = (token:string,password:string) => request<{message:
 export const updateProfile = (patch: Record<string, unknown>) =>
   request<{ user: import('../types/api.js').User }>('/auth/profile', { method: 'PATCH', body: JSON.stringify(patch) });
 
-export const deleteMyAccount = (password: string) =>
-  request<void>('/auth/account', { method: 'DELETE', body: JSON.stringify({ password }) });
-
 export async function exportMyData(): Promise<void> {
   const data = await request<Record<string, unknown>>('/auth/export');
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = 'tradepro-data-export.json';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-
-// ---- Leads ----
-export const listLeads = (params = '') =>
-  request<{ leads: import('../types/api.js').Lead[] }>(`/leads${params}`);
-
-export const createLead = (payload: Record<string, unknown>) =>
+  const blob = new Blconst createLead = (payload: Record<string, unknown>) =>
   request<{ lead: import('../types/api.js').Lead }>('/leads', { method: 'POST', body: JSON.stringify(payload) });
 
 export const updateLead = (id: string, patch: Record<string, unknown>) =>
