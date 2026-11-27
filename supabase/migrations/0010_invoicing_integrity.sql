@@ -100,3 +100,24 @@ CREATE TABLE IF NOT EXISTS invoicing.webhook_receipts (
 ALTER TABLE invoicing.webhook_receipts ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON invoicing.webhook_receipts FROM PUBLIC,anon,authenticated;
 GRANT ALL ON invoicing.webhook_receipts TO service_role;
+
+
+CREATE OR REPLACE FUNCTION invoicing.delete_payment(p_user_id uuid,p_payment_id uuid)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public, invoicing
+AS $$
+DECLARE p invoicing.payments%ROWTYPE; d invoicing.documents%ROWTYPE; paid bigint; next_status text;
+BEGIN
+  SELECT * INTO p FROM invoicing.payments WHERE id=p_payment_id AND user_id=p_user_id;
+  IF NOT FOUND THEN RETURN false; END IF;
+  SELECT * INTO d FROM invoicing.documents WHERE id=p.document_id AND user_id=p_user_id FOR UPDATE;
+  IF NOT FOUND OR d.status='paid' OR d.status='void' THEN RAISE EXCEPTION 'payment cannot be deleted'; END IF;
+  DELETE FROM invoicing.payments WHERE id=p_payment_id AND user_id=p_user_id;
+  SELECT coalesce(sum(amount_minor),0) INTO paid FROM invoicing.payments WHERE document_id=p.document_id AND user_id=p_user_id;
+  next_status := CASE WHEN paid >= d.total_minor THEN 'paid' WHEN paid > 0 THEN 'partially_paid' ELSE 'issued' END;
+  UPDATE invoicing.documents SET amount_paid_minor=paid,status=next_status,updated_at=now()
+    WHERE id=p.document_id AND user_id=p_user_id;
+  RETURN true;
+END $$;
+REVOKE ALL ON FUNCTION invoicing.delete_payment(uuid,uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION invoicing.delete_payment(uuid,uuid) TO service_role;
