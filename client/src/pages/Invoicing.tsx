@@ -139,17 +139,7 @@ function DocumentsTable({ docs, onEdit, onDelete, onSend, onNew }: {
                   {d.status === 'draft' ? (
                     <Button variant="ghost" size="sm" onClick={() => onDelete(d)}>Delete</Button>
                   ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={async () => {
-                        if (!window.confirm(`Void ${d.number}?`)) return;
-                        await api.invoicingDocumentAction(d.id, 'decline').catch(() => undefined);
-                        window.location.reload();
-                      }}
-                    >
-                      Void
-                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => onDelete(d)}>Void</Button>
                   )}
                 </span>
               </td>
@@ -448,6 +438,7 @@ export default function InvoicingPage() {
   const [kindFilter, setKindFilter] = useState<'' | InvoicingKind>('');
   const [statusFilter, setStatusFilter] = useState<'' | InvoicingStatus>('');
   const [editing, setEditing] = useState<InvoicingDocument | null>(null);
+  const [confirmingDoc, setConfirmingDoc] = useState<InvoicingDocument | null>(null);
 
   const enabled = api.isInvoicingEnabled();
 
@@ -500,11 +491,17 @@ export default function InvoicingPage() {
     }
   };
 
-  const deleteDoc = async (d: InvoicingDocument) => {
-    if (!window.confirm(`Delete draft ${d.number}?`)) return;
+  const deleteDoc = (d: InvoicingDocument) => setConfirmingDoc(d);
+
+  const performDelete = async () => {
+    if (!confirmingDoc) return;
+    const target = confirmingDoc;
     try {
-      await api.deleteInvoicingDocument(d.id);
-      setDocs((prev) => prev.filter((x) => x.id !== d.id));
+      await api.deleteInvoicingDocument(target.id);
+      setDocs((prev) => target.status === 'draft'
+        ? prev.filter((x) => x.id !== target.id)
+        : prev.map((x) => x.id === target.id ? { ...x, status: 'void' } : x));
+      setConfirmingDoc(null);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -594,6 +591,22 @@ export default function InvoicingPage() {
           )}
         </Card>
       )}
+
+      {confirmingDoc ? (
+        <Modal title={confirmingDoc.status === 'draft' ? 'Delete draft?' : 'Void document?'} onClose={() => setConfirmingDoc(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-muted">
+              {confirmingDoc.status === 'draft'
+                ? `Delete draft ${confirmingDoc.number}? This cannot be undone.`
+                : `Void ${confirmingDoc.number}? It will remain in your records but cannot be paid or edited.`}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setConfirmingDoc(null)}>Cancel</Button>
+              <Button variant="danger" onClick={() => void performDelete()}>{confirmingDoc.status === 'draft' ? 'Delete draft' : 'Void document'}</Button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
 
       {editing ? (
         <DocumentEditor
