@@ -23,3 +23,6 @@ CRON_SECRET=local-only-replace-with-32-characters
 RESEND_WEBHOOK_SECRET=
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=TradePro CRM <hello@example.test>
+
+# Required when the invoicing share endpoints are enabled
+SV_API_KEY=
