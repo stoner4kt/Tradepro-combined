@@ -15,7 +15,6 @@ concurrency:
   cancel-in-progress: false
 jobs:
   refresh:
-    if: github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(deps): refresh lockfile')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
