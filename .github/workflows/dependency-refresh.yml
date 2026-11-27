@@ -3,6 +3,8 @@ on:
   push:
     branches: [hardening/go-live]
     paths:
+      - package.json
+      - package-lock.json
       - client/package.json
       - server/package.json
   workflow_dispatch:
@@ -26,8 +28,9 @@ jobs:
           cache: npm
       - name: Resolve patched dependency graph
         run: |
-          npm install --package-lock-only --ignore-scripts
-          npm audit fix --package-lock-only --ignore-scripts
+          npm audit fix --force --ignore-scripts || true
+          npm audit fix --ignore-scripts
+          npm audit --audit-level=high
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
@@ -44,7 +47,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
+          git add package.json package-lock.json client/package.json server/package.json
           if git diff --cached --quiet; then echo "Lockfile already current"; exit 0; fi
           git commit -m "chore(deps): refresh lockfile with patched dependencies"
+          git fetch origin hardening/go-live
+          git rebase origin/hardening/go-live
           git push origin HEAD:hardening/go-live
