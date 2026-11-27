@@ -14,7 +14,8 @@ const LedgerPage = lazy(() => import('./pages/Ledger.js'));
 const ReviewsPage = lazy(() => import('./pages/Reviews.js'));
 const InvoicingPage = lazy(() => import('./pages/Invoicing.js'));
 const PublicDocumentPage = lazy(() => import('./pages/PublicDocument.js'));
-const { PrivacyPage, TermsPage } = await import('./pages/Legal.js').then(module => ({ PrivacyPage: module.PrivacyPage, TermsPage: module.TermsPage }));
+const PrivacyPage = lazy(() => import('./pages/Legal.js').then(module => ({ default: module.PrivacyPage })));
+const TermsPage = lazy(() => import('./pages/Legal.js').then(module => ({ default: module.TermsPage })));
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
