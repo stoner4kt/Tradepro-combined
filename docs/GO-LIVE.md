@@ -42,6 +42,19 @@ The `hardening/go-live` branch contains a broad hardening implementation, but is
 - [ ] Verify public quote/invoice links, expiry, revocation, quote acceptance/decline and print-to-PDF.
 - [ ] Complete the remaining UX brief items and update the report with evidence.
 
+## Supabase, Resend and monitoring owner tasks
+
+- [ ] Resume the Supabase project if it has paused; confirm the actual database backup/restore plan (the Free tier has no managed backups or PITR).
+- [ ] In Supabase Auth, disable public signups because the Worker provisions users through the Admin API. Set Site URL and allowed redirect URLs to the exact APP_ORIGIN and its verification/reset routes.
+- [ ] Keep `reviewflow` and `invoicing` in the Supabase Data API exposed schemas for service-role clients.
+- [ ] Set Edge Function secrets separately from Cloudflare Worker secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, INTEGRATION_SECRET, CRON_SECRET, RESEND_API_KEY, RESEND_FROM_EMAIL and RESEND_WEBHOOK_SECRET. Generate secrets with `openssl rand -hex 32`.
+- [ ] Run `npm run deploy:functions` against staging, then `scripts/smoke-functions.sh` with SUPABASE_URL and SUPABASE_ANON_KEY. These scripts deploy/check gateway configuration; they do not replace function-level auth tests.
+- [ ] Verify Resend sending domain SPF, DKIM and DMARC (prefer a dedicated mail subdomain) and configure its Svix webhook URL/signing secret.
+- [ ] Configure Cloudflare Pages and Worker custom domains for `app.<domain>` and `api.<domain>`, add the Cron triggers from wrangler.jsonc, and set Pages VITE_API_URL and VITE_SUPABASE_URL build variables.
+- [ ] Configure an uptime monitor against `/api/health`; use the CRON_SECRET-protected `/api/health/deep` only from trusted monitoring.
+- [ ] Review Free-tier limits before launch: Supabase database/storage/edge invocation quotas and inactivity pause, Resend's roughly 100-email/day allowance, and lack of managed backups/PITR. Recheck current vendor limits before relying on them.
+- [ ] Optional: add Cloudflare Turnstile only after implementing and configuring TURNSTILE_SECRET; it is not enabled by this branch.
+
 ## Explicit deployment gate
 
 Do not deploy until all staging checks pass, migrations have a reviewed rollback plan, CI is green, and an owner has approved the final PR. No migration or secret change is performed by this checklist.
