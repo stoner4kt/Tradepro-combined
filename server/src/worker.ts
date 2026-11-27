@@ -12,6 +12,7 @@ interface WorkerEnv {
   CRON_SECRET?: string;
   INVOICING_URL?: string;
   INVOICING_SECRET?: string;
+  API_ORIGIN?: string;
 }
 
 /** Scheduled work is stateless; all claims/limits are persisted in Postgres. */
@@ -46,7 +47,12 @@ async function scheduled(controller: ScheduledController, env: WorkerEnv): Promi
   }
   if (controller.cron === '0 3 * * *') {
     if (!supabaseUrl || !serviceKey) throw new Error('Supabase cleanup is not configured');
-    const response = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/rpc/cleanup_security_rows`, {
+    const apiOrigin = (env.API_ORIGIN || config.apiOrigin).replace(/\\/+$/, '');
+    const cronSecret = env.CRON_SECRET || process.env.CRON_SECRET || '';
+    if (!apiOrigin || cronSecret.length < 32) throw new Error('Deep health check is not configured');
+    const health = await fetch(`${apiOrigin}/api/health/deep`, { headers: { 'x-cron-secret': cronSecret } });
+    if (!health.ok) throw new Error(`Deep health check failed: ${health.status}`);
+    const response = await fetch(`${supabaseUrl.replace(/\\/+$/, '')}/rest/v1/rpc/cleanup_security_rows`, {
       method: 'POST',
       headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
       body: '{}',
