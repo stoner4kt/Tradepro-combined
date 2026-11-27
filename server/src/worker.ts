@@ -35,7 +35,13 @@ async function scheduled(controller: ScheduledController, env: WorkerEnv): Promi
       headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ kind: 'reminders' }),
     });
-    if (!response.ok) throw new Error(`Invoicing cron failed: ${response.status}`);
+    if (!response.ok) throw new Error(`Invoicing reminder cron failed: ${response.status}`);
+    const overdue = await fetch(`${base}/functions/v1/invoicing-cron`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'overdue' }),
+    });
+    if (!overdue.ok) throw new Error(`Invoicing overdue sweep failed: ${overdue.status}`);
     return;
   }
   if (controller.cron === '0 3 * * *') {
