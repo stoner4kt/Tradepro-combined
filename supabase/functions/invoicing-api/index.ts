@@ -33,11 +33,11 @@ import {
 } from "../_shared/invoicing/invoicing.ts";
 
 const DOC_COLUMNS =
-  "id,user_id,kind,number,status,external_customer_ref,external_project_ref,external_lead_ref,customer_snapshot,issue_date,due_date,quote_valid_until,title,notes,currency,subtotal_minor,tax_minor,total_minor,amount_paid_minor,token,sent_at,meta,created_at,updated_at";
+  "id,user_id,kind,number,status,external_customer_ref,external_project_ref,external_lead_ref,customer_snapshot,issue_date,due_date,quote_valid_until,title,notes,currency,subtotal_minor,tax_minor,total_minor,amount_paid_minor,token,sent_at,meta,expires_at,created_at,updated_at";
 const LINE_COLUMNS =
   "id,user_id,document_id,description,quantity,unit_price_minor,sort_order,created_at";
 const SETTINGS_COLUMNS =
-  "id,user_id,business_name,email,phone,reply_to_email,currency,locale,tax_rate,payment_terms_days,quote_valid_days,invoice_prefix,quote_prefix,next_invoice_number,next_quote_number,bank_details,notes,created_at,updated_at";
+  "id,user_id,business_name,email,phone,reply_to_email,currency,locale,tax_rate,payment_terms_days,quote_valid_days,invoice_prefix,quote_prefix,next_invoice_number,next_quote_number,bank_details,notes,business_address,tax_number,created_at,updated_at";
 
 const SETTINGS_UPDATE_FIELDS = [
   "business_name", "email", "phone", "reply_to_email", "currency", "locale",
