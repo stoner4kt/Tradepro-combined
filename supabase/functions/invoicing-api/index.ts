@@ -287,7 +287,23 @@ async function sendDocumentEmail(
   kind: "quote_sent" | "invoice_sent" | "reminder",
 ): Promise<{ message_id: string | null; status: string; to: string; subject: string } | { error: string }> {
   const { email: recipient } = numbersFromSnapshot(doc.customer_snapshot as Record<string, unknown>);
-  if (!recipient) return { error: "No customer email — set the customer before sending" };
+  if (!recipient || recipient.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)) {
+    return { error: "A valid customer email is required before sending" };
+  }
+
+  const publicDb = admin.schema("public");
+  const { data: ownerSettings, error: ownerSettingsError } = await publicDb
+    .from("settings").select("daily_email_cap").eq("user_id", userId).maybeSingle();
+  if (ownerSettingsError) return { error: "Unable to verify the daily email allowance" };
+  const dailyCap = Math.max(1, Math.min(500, Number(ownerSettings?.daily_email_cap || 50)));
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("invoice-email:" + userId));
+  const limitKey = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
+  const { data: limitData, error: limitError } = await publicDb.rpc("rate_limit_hit", {
+    p_key: limitKey, p_window_seconds: 86400, p_max: dailyCap,
+  });
+  const limit = Array.isArray(limitData) ? limitData[0] : limitData;
+  if (limitError) return { error: "Unable to verify the daily email allowance" };
+  if (!limit?.allowed) return { error: "Daily email limit reached" };
 
   const from = Deno.env.get("INVOICING_FROM_EMAIL") || Deno.env.get("RESEND_FROM_EMAIL");
   const apiKey = Deno.env.get("RESEND_API_KEY");
