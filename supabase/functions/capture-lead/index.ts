@@ -1,94 +1,58 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-export const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type, authorization, x-widget-key, x-integration-secret, x-internal-call, x-user-id",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, PATCH, OPTIONS",
-};
-
-export function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, "Content-Type": "application/json" },
-  });
-}
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
+import { clientIp } from "../_shared/security.ts";
 
-function adminClient(): SupabaseClient {
-  const url = Deno.env.get("SUPABASE_URL");
-  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !key) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not configured as secrets on this function");
-  return createClient(url, key, { db: { schema: "reviewflow" } });
+const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"content-type, authorization, x-widget-key","Access-Control-Allow-Methods":"POST, OPTIONS"};
+function json(data:unknown,status=200):Response{return new Response(JSON.stringify(data),{status,headers:{...CORS,"Content-Type":"application/json","Cache-Control":"no-store"}});}
+function adminClient():SupabaseClient{
+ const url=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+ if(!url||!key)throw new Error("Service unavailable");
+ return createClient(url,key,{db:{schema:"reviewflow"}});
 }
-
-function checkIntegrationSecret(req: Request): boolean {
-  const expected = Deno.env.get("INTEGRATION_SECRET");
-  if (!expected) return true;
-  const provided = req.headers.get("x-integration-secret");
-  return provided !== null && provided === expected;
+async function hash(value:string):Promise<string>{
+ const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));
+ return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
 }
-
-function userIdFromRequest(req: Request): string | null {
-  const raw = req.headers.get("x-user-id");
-  if (!raw) return null;
-  const id = raw.trim();
-  return id.length > 0 && id.length <= 64 ? id : null;
-}
-
-interface WidgetOwner {
-  user_id: string;
-  widget_api_key: string;
-  auto_send_enabled: boolean;
-  auto_send_delay_hours: number;
-}
-
-async function resolveWidgetOwner(admin: SupabaseClient, widgetKey: string): Promise<WidgetOwner | null> {
-  const { data, error } = await admin.from("settings")
-    .select("user_id, widget_api_key, auto_send_enabled, auto_send_delay_hours")
-    .eq("widget_api_key", widgetKey).maybeSingle();
-  if (error || !data) return null;
-  return data as unknown as WidgetOwner;
-}
-
-/*
- * capture-lead
- * ------------
- * Public widget endpoint. Authenticates with the widget API key
- * (x-widget-key header), resolves the owning CRM user through that key, and
- * inserts the lead under that user in reviewflow.leads.
- *
- * Multi-tenant: rows are always scoped to the resolved owner's user_id.
- */
-
-serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-
-  const widgetKey = req.headers.get("x-widget-key");
-  if (!widgetKey) return json({ error: "x-widget-key header is required" }, 401);
-
-  const admin = adminClient();
-  const owner = await resolveWidgetOwner(admin, widgetKey);
-  if (!owner) return json({ error: "Invalid API key" }, 401);
-
-  let body: Record<string, string>;
-  try { body = await req.json(); }
-  catch { return json({ error: "Invalid JSON" }, 400); }
-
-  if (!body.email) return json({ error: "email is required" }, 400);
-
-  const { data: lead, error } = await admin.from("leads").insert({
-    user_id:    owner.user_id,
-    first_name: body.first_name || "",
-    last_name:  body.last_name  || "",
-    email:      body.email.toLowerCase().trim(),
-    phone:      body.phone   || null,
-    service:    body.service || null,
-    message:    body.message || null,
-    source:     "widget",
-    status:     "new",
-  }).select("id").single();
-
-  if (error) return json({ error: "Failed to save lead" }, 500);
-
-  return json({ success: true, lead_id: lead.id }, 201);
+interface WidgetOwner{user_id:string;widget_api_key:string;}
+serve(async(req:Request):Promise<Response>=>{
+ if(req.method==="OPTIONS")return new Response(null,{status:204,headers:CORS});
+ if(req.method!=="POST")return json({error:"Method not allowed"},405);
+ const widgetKey=req.headers.get("x-widget-key")||"";
+ const origin=req.headers.get("origin")||"";
+ if(!widgetKey||widgetKey.length>256||!origin)return json({error:"Invalid widget request"},401);
+ let body:Record<string,unknown>;
+ try{body=await req.json();}catch{return json({error:"Invalid request"},400);}
+ const email=String(body.email||"").trim().toLowerCase();
+ const first=String(body.first_name||""),last=String(body.last_name||"");
+ const phone=String(body.phone||""),service=String(body.service||""),message=String(body.message||"");
+ if(body.website || body.consent!==true || !Number.isFinite(Number(body.started_at)) || Date.now()-Number(body.started_at)<1200)
+  return json({error:"Invalid submission"},400);
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||first.length>120||last.length>120||phone.length>40||service.length>120||message.length>2000)
+  return json({error:"Invalid submission"},400);
+ let admin:SupabaseClient;
+ try{admin=adminClient();}catch{return json({error:"Service unavailable"},503);}
+ const {data:owner,error:ownerError}=await admin.from("settings").select("user_id,widget_api_key").eq("widget_api_key",widgetKey).maybeSingle();
+ if(ownerError||!owner)return json({error:"Invalid widget request"},401);
+ const publicDb=admin.schema("public");
+ const {data:ownerSettings,error:settingsError}=await publicDb.from("settings").select("allowed_origins").eq("user_id",owner.user_id).maybeSingle();
+ const origins=Array.isArray(ownerSettings?.allowed_origins)?ownerSettings.allowed_origins as string[]:[];
+ if(settingsError||!origins.includes(origin))return json({error:"Origin not allowed"},403);
+ const ip=clientIp(req);
+ const [perIpKey,perDayKey]=await Promise.all([hash(`capture:${owner.user_id}:${widgetKey}:${ip}`),hash(`capture-day:${owner.user_id}:${widgetKey}`)]);
+ const [shortLimit,dayLimit]=await Promise.all([
+  publicDb.rpc("rate_limit_hit",{p_key:perIpKey,p_window_seconds:600,p_max:30}),
+  publicDb.rpc("rate_limit_hit",{p_key:perDayKey,p_window_seconds:86400,p_max:300}),
+ ]);
+ const shortRow=Array.isArray(shortLimit.data)?shortLimit.data[0]:shortLimit.data;
+ const dayRow=Array.isArray(dayLimit.data)?dayLimit.data[0]:dayLimit.data;
+ if(shortLimit.error||dayLimit.error)return json({error:"Rate limit service unavailable"},503);
+ if(!shortRow?.allowed||!dayRow?.allowed)return json({error:"Too many submissions. Please try again later."},429);
+ const {data:existing}=await admin.from("leads").select("id").eq("user_id",owner.user_id).eq("email",email).gte("created_at",new Date(Date.now()-10*60*1000).toISOString()).maybeSingle();
+ if(existing)return json({success:true,lead_id:existing.id});
+ const {data:lead,error}=await admin.from("leads").insert({
+  user_id:owner.user_id,first_name:first,last_name:last,email,phone:phone||null,service:service||null,message:message||null,
+  source:"widget",status:"new",consent_at:new Date().toISOString(),consent_text:"I agree to be contacted about this enquiry.",source_url:origin
+ }).select("id").single();
+ if(error)return json({error:"Unable to save your enquiry"},500);
+ return json({success:true,lead_id:lead.id},201);
 });
