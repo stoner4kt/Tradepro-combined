@@ -141,6 +141,16 @@ export class AuthService {
     return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
   }
 
+  async resendVerification(email:string):Promise<void>{
+    if(!this.admin)return;
+    const user=await this.local.findByEmail(email);
+    if(!user)return;
+    const {data}=await this.admin.auth.admin.getUserById(user.id);
+    if(!data.user || data.user.email_confirmed_at)return;
+    const token=await this.createAuthToken(user.id,'email_verify',24*60*60);
+    await this.sendAuthLink(email,'verify-email',token,'Verify your TradePro email');
+  }
+
   async requestPasswordReset(email:string):Promise<void>{
     if(!this.admin)return;
     const user=await this.local.findByEmail(email);
