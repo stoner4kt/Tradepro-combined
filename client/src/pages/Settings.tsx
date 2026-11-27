@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import type { Settings } from '../types/api.js';
-import { Alert, Button, Card, Field, Input, PageHeader, Select, Spinner } from '../components/ui.js';
+import { Alert, Button, Card, Field, Input, PageHeader, Select, Spinner, Textarea } from '../components/ui.js';
 import { useAuth } from '../contexts/AuthContext.js';
 
 export default function SettingsPage() {
@@ -51,6 +51,8 @@ export default function SettingsPage() {
       replyToEmail: String(f.get('replyToEmail') ?? ''),
       currency: String(f.get('currency') ?? 'USD'),
       emailNotifications: f.get('emailNotifications') === 'on',
+      allowedOrigins: String(f.get('allowedOrigins') ?? '').split(/\\r?\\n/).map((v) => v.trim()).filter(Boolean),
+      dailyEmailCap: Number(f.get('dailyEmailCap') ?? 50),
     };
     try {
       await api.updateSettings(payload);
@@ -137,6 +139,12 @@ export default function SettingsPage() {
                 <input type="checkbox" name="emailNotifications" defaultChecked={settings.emailNotifications} className="h-4 w-4 rounded border-[#cfd7e3] text-brand-600 focus:ring-brand-500" />
                 Send email notifications for new lead captures
               </label>
+              <Field label="Widget website origins" hint="One exact HTTPS origin per line (for example, https://www.example.co.za). Only these websites can submit leads through your widget.">
+                <Textarea name="allowedOrigins" rows={4} defaultValue={(settings.allowedOrigins ?? []).join('\n')} placeholder="https://www.example.co.za" />
+              </Field>
+              <Field label="Daily review email limit" hint="Maximum automated and manual review emails sent per 24-hour window.">
+                <Input name="dailyEmailCap" type="number" min={1} max={500} defaultValue={settings.dailyEmailCap ?? 50} />
+              </Field>
               <div className="flex justify-end border-t border-[#eef1f6] pt-4">
                 <Button type="submit" disabled={busy} className="w-full sm:w-auto">{busy ? 'Saving…' : 'Save email settings'}</Button>
               </div>
