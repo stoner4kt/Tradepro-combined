@@ -65,6 +65,21 @@ export class AuthService {
     return this.admin !== null;
   }
 
+  private async passwordPolicyError(password:string):Promise<string|null>{
+    if(password.length<10||password.length>128)return 'Password must be 10–128 characters';
+    if(new Set(['password123','password1234','1234567890','qwerty12345','letmein1234','welcome1234']).has(password.toLowerCase()))return 'Choose a less common password';
+    try{
+      const digest=await crypto.subtle.digest('SHA-1',new TextEncoder().encode(password));
+      const hash=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+      const prefix=hash.slice(0,5),suffix=hash.slice(5);
+      const response=await fetch(`https://api.pwnedpasswords.com/range/${prefix}`,{headers:{'Add-Padding':'true'}});
+      if(!response.ok)throw new Error(`HIBP status ${response.status}`);
+      const matches=(await response.text()).split(/\\r?\\n/).some(line=>{const [candidate,count]=line.split(':');return candidate===suffix&&Number(count)>0;});
+      if(matches)return 'Choose a password that has not appeared in known data breaches';
+    }catch(err){logger.warn('Password breach check unavailable; continuing with local policy',{error:(err as Error).message});}
+    return null;
+  }
+
   async register(input: {
     email: string;
     password: string;
@@ -73,6 +88,8 @@ export class AuthService {
     businessType?: string;
     phone?: string;
   }): Promise<AuthResult> {
+    const policyError = await this.passwordPolicyError(input.password);
+    if (policyError) return { error: policyError, status: 400, provider: this.admin ? 'supabase' : 'local' };
     if (this.admin) {
       try {
         const { data, error } = await this.admin.auth.admin.createUser({
@@ -161,6 +178,7 @@ export class AuthService {
 
   async completePasswordReset(rawToken:string,newPassword:string):Promise<boolean>{
     if(!this.admin)return false;
+    if(await this.passwordPolicyError(newPassword))return false;
     const hash=await this.hashToken(rawToken);
     const {data:row}=await this.admin.from('auth_tokens').select('id,user_id,expires_at,used_at').eq('purpose','password_reset').eq('token_hash',hash).maybeSingle();
     if(!row||row.used_at||Date.parse(row.expires_at)<=Date.now())return false;
