@@ -416,4 +416,4 @@ function mapSupabaseProfile(row: Record<string, unknown>): User {
     createdAt: String(row.created_at ?? ''),
     updatedAt: String(row.updated_at ?? ''),
   };
-
+}
