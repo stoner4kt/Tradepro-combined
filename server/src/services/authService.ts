@@ -192,10 +192,9 @@ export class AuthService {
 
   async bumpTokenVersion(userId:string):Promise<number>{
     if(!this.admin)return 0;
-    const next=(await this.getTokenVersion(userId))+1;
-    const {error}=await this.admin.from('profiles').update({token_version:next}).eq('id',userId);
+    const {data,error}=await this.admin.rpc('increment_token_version',{p_user_id:userId});
     if(error)throw error;
-    return next;
+    return Number(data);
   }
 
   async isTokenVersionValid(userId:string,version:number):Promise<boolean>{return (await this.getTokenVersion(userId))===version;}
