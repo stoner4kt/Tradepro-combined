@@ -205,7 +205,7 @@ export async function sendReviewForLead(
   });
   if (tokenError) return { ok: false, status: 500, body: { error: "Unable to prepare unsubscribe link" } };
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  const unsubscribeUrl = supabaseUrl.replace(/\\/+$/, "") + "/functions/v1/reviewflow-unsubscribe?token=" + encodeURIComponent(rawUnsubscribe);
+  const unsubscribeUrl = supabaseUrl.replace(/\/+$/, "") + "/functions/v1/reviewflow-unsubscribe?token=" + encodeURIComponent(rawUnsubscribe);
   const emailHtml = html + '<p><a href="' + unsubscribeUrl + '">Unsubscribe from review-request emails</a></p>';
 
   const { data: ownerSettings, error: ownerSettingsError } = await admin.schema("public").from("settings")
