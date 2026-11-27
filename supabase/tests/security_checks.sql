@@ -25,7 +25,7 @@ WITH table_grants AS (
   SELECT 'RLS disabled' AS issue, n.nspname||'.'||c.relname AS object_name,
          'row-level security is not enabled' AS detail
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-  WHERE n.nspname IN ('public','reviewflow','invoicing')
+  WHERE (n.nspname IN ('reviewflow','invoicing') OR (n.nspname='public' AND c.relname = ANY(ARRAY['profiles','settings','leads','clients','projects','email_captures','email_logs','auth_tokens','rate_limits','email_opt_outs','email_opt_out_tokens'])))
     AND c.relkind IN ('r','p') AND NOT c.relrowsecurity
 ), bare_uid AS (
   SELECT 'bare auth.uid policy' AS issue, schemaname||'.'||tablename||'.'||policyname AS object_name,
