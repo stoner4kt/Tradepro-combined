@@ -212,7 +212,7 @@ export async function sendReviewForLead(
 
   const resendRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+    headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json", "Idempotency-Key": "tradepro-review-" + leadRow.id },
     body: JSON.stringify({
       from: s.review_from_name ? `${s.review_from_name} <${fromEmail}>` : fromEmail,
       to: [leadRow.email],
@@ -227,7 +227,7 @@ export async function sendReviewForLead(
   }
 
   const recipient = `${leadRow.first_name || ""} ${leadRow.last_name || ""}`.trim() || undefined;
-  await admin.from("review_requests").insert({
+  const {error:logError}=await admin.from("review_requests").insert({
     user_id:           userId,
     lead_id:           leadRow.id,
     recipient_email:   leadRow.email,
@@ -237,11 +237,13 @@ export async function sendReviewForLead(
     status:            "sent",
     triggered_by:      trigger,
   });
+  if(logError)return {ok:false,status:500,body:{error:"Email sent but delivery record could not be saved; retry is safe"}};
 
-  await admin.from("leads").update({
+  const {error:updateError}=await admin.from("leads").update({
     status: "review_sent", review_sent_at: new Date().toISOString(), review_send_claimed_at: null,
     updated_at: new Date().toISOString(),
   }).eq("id", leadRow.id).eq("user_id",userId);
+  if(updateError)return {ok:false,status:500,body:{error:"Email sent but lead status could not be updated; retry is safe"}};
 
   return { ok: true, status: 200, body: { success: true, message_id: (resendData as { id?: string }).id } };
 }
