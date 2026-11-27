@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Request, Response, NextFunction } from 'express';
 import { config } from '../utils/config.js';
 import { sendError } from '../lib/http.js';
+import { logger } from '../utils/logger.js';
 
 const client = config.supabase.configured
   ? createClient(config.supabase.url,config.supabase.serviceKey,{auth:{autoRefreshToken:false,persistSession:false}})
@@ -9,7 +10,7 @@ const client = config.supabase.configured
 
 export function rateLimit(options:{scope:string;windowSeconds:number;max:number;failClosed?:boolean;keyBy?:"ip"|"email"|"ip_email"}) {
  return async (req:Request,res:Response,next:NextFunction):Promise<void>=>{
-  if(!client){if(options.failClosed){sendError(res,503,'Rate limiting unavailable');return;}next();return;}
+  if(!client){if(options.failClosed){sendError(res,503,'Rate limiting unavailable');return;}logger.warn('Rate limiter not configured; failing open',{scope:options.scope});next();return;}
   const forwarded=String(req.headers['cf-connecting-ip']||req.socket.remoteAddress||'unknown').slice(0,64);
   const email=String(req.body?.email||'').trim().toLowerCase();
   const keyBy=options.keyBy||"ip_email";
@@ -24,6 +25,7 @@ export function rateLimit(options:{scope:string;windowSeconds:number;max:number;
    next();
   }catch(err){
    if(options.failClosed){sendError(res,503,'Rate limiting unavailable');return;}
+   logger.warn('Rate limiter query failed; failing open',{scope:options.scope,error:(err as Error).message});
    next();
   }
  };
