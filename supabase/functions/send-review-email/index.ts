@@ -10,7 +10,7 @@ export const CORS = {
 export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...CORS, "Content-Type": "application/json", "Idempotency-Key": "tradepro-review-" + leadRow.id },
+    headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 }
 
@@ -173,6 +173,9 @@ export async function sendReviewForLead(
   if(optOutError)return {ok:false,status:503,body:{error:'Unable to verify recipient preferences'}};
   if(optOut)return {ok:false,status:409,body:{error:"Recipient has opted out"}};
 
+  let reviewUrl: URL;
+  try { reviewUrl = new URL(s.google_review_url); } catch { return { ok: false, status: 400, body: { error: "Review URL must be HTTPS" } }; }
+  if (reviewUrl.protocol !== "https:") return { ok: false, status: 400, body: { error: "Review URL must be HTTPS" } };
   const subject = resolveTags(String(s.email_subject_template || ""), leadRow, s);
   const intro = resolveTags(String(s.email_intro_text || ""), leadRow, s);
   const html = buildEmailHtml({
@@ -180,7 +183,7 @@ export async function sendReviewForLead(
     firstName: leadRow.first_name,
     introText: intro,
     buttonText: s.email_button_text,
-    reviewUrl: s.google_review_url,
+    reviewUrl: reviewUrl.toString(),
     brandColor: s.email_brand_color,
   });
 
@@ -216,6 +219,7 @@ export async function sendReviewForLead(
       reply_to: s.review_reply_to_email || undefined,
       subject,
       html: emailHtml,
+      headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
     }),
   });
   const resendData = await resendRes.json().catch(() => ({}));
@@ -271,6 +275,8 @@ serve(async (req) => {
   if (!userId) return json({ error: "x-user-id header is required" }, 400);
 
   const admin = adminClient();
+  const { data: profile, error: profileError } = await admin.schema("public").from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (profileError || !profile) return json({ error: "Unknown tenant" }, 403);
 
   let body: Record<string, unknown>;
   try { body = await req.json(); }
