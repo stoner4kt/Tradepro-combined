@@ -256,6 +256,22 @@ export class AuthService {
     await this.local.updatePassword(id, newPassword);
   }
 
+  async changePassword(userId:string,currentPassword:string,newPassword:string):Promise<string|null>{
+    const policy=await this.passwordPolicyError(newPassword);if(policy)return null;
+    const user=await this.local.findById(userId);if(!user)return null;
+    if(this.admin){
+      const {error:authError}=await this.admin.auth.signInWithPassword({email:user.email,password:currentPassword});
+      if(authError)return null;
+      const {error}=await this.admin.auth.admin.updateUserById(userId,{password:newPassword});
+      if(error)return null;
+      const version=await this.bumpTokenVersion(userId);
+      return signUserToken(user,version);
+    }
+    if(!(await this.local.verifyPassword(user,currentPassword)))return null;
+    await this.local.updatePassword(userId,newPassword);
+    return signUserToken(user);
+  }
+
   async updatePasswordAdmin(id: string, newPassword: string): Promise<void> {
     if (!this.admin) throw new Error('Supabase not configured');
     await this.admin.auth.admin.updateUserById(id, { password: newPassword });
