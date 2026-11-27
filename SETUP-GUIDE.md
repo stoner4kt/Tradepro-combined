@@ -410,3 +410,41 @@ branch does not deploy them. Set `INTEGRATION_SECRET` on the Supabase edge
 functions and matching `REVIEWFLOW_SECRET` on the Worker; set matching
 `CRON_SECRET` on the Worker and `invoicing-cron`. Confirm the migrations and
 Cron execution in staging before production.
+
+
+## Go-live hardening addendum (review branch)
+
+The original five-migration setup above describes the initial merged schema only. The hardening branch adds migrations 0007–0015. For a fresh or staging database, apply all migrations in numeric order; for an existing production database, review the current migration history and apply only pending files after a backup/rollback review:
+
+- 0007 security privilege lockdown
+- 0008 RLS policy wrapping and indexes
+- 0009 auth, rate-limit and opt-out support
+- 0010 invoicing state machine and atomic payments
+- 0011 privileged RPC hardening
+- 0012 ReviewFlow scheduled claims
+- 0013 public document details
+- 0014 invoice reminder claims
+- 0015 auth and email lifecycle support
+
+Never edit or re-run migrations 0001–0006 on a database where they have already been applied.
+
+### Worker session and CSRF configuration
+
+Use custom domains on the same registrable domain for the Pages app and Worker API. Configure `APP_ORIGIN`, `API_ORIGIN`, exact `CORS_ORIGIN=APP_ORIGIN`, and `COOKIE_DOMAIN` covering both hosts. The session cookie is HttpOnly, Secure, SameSite=Lax, and 8 hours. Mutating requests require the exact app Origin/Referer, JSON content type and `X-TradePro` header. Do not enable bearer auth in production.
+
+Required production variables/secrets include `JWT_SECRET`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `CORS_ORIGIN`, `APP_ORIGIN`, `API_ORIGIN`, `COOKIE_DOMAIN`, `INTEGRATION_SECRET`, `CRON_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `RESEND_WEBHOOK_SECRET`. Use at least 32 random characters for JWT, integration, cron and share API secrets. Set matching `INTEGRATION_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_WEBHOOK_SECRET` and `X_API_KEY` in Supabase Edge Function secrets. Worker and Supabase secrets are configured separately.
+
+### Edge functions and scheduled jobs
+
+Deploy every function with the gateway JWT check disabled (each function performs its own auth where applicable):
+
+```bash
+npm run deploy:functions
+SUPABASE_URL=https://<project>.supabase.co SUPABASE_ANON_KEY=<anon-key> bash scripts/smoke-functions.sh
+```
+
+Cloudflare Cron triggers are configured in `server/wrangler.jsonc`: every 5 minutes for due ReviewFlow emails, every 15 minutes for invoice reminders/overdue status, and daily at 03:00 UTC for deep health and security-row cleanup. Check Worker logs after enabling them.
+
+### Review and production gate
+
+This branch is not a production deployment. Review `docs/HARDENING-PR.md`, run `supabase/tests/security_checks.sql` in staging, complete the tenant-isolation matrix, confirm CI is green and review the rollback plan before merging.
