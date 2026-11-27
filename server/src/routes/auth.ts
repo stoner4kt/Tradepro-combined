@@ -12,7 +12,7 @@ export function authRoutes(authService: AuthService): Router {
 
   router.post(
     '/register',
-    rateLimit({ scope: 'auth-register', windowSeconds: 3600, max: 5, failClosed: config.isProduction }),
+    rateLimit({ scope: 'auth-register-ip', keyBy: 'ip', windowSeconds: 3600, max: 5, failClosed: config.isProduction }),
     asyncHandler(async (req, res) => {
       const parsed = registerSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -28,7 +28,8 @@ export function authRoutes(authService: AuthService): Router {
 
   router.post(
     '/login',
-    rateLimit({ scope: 'auth-login', windowSeconds: 900, max: 5, failClosed: config.isProduction }),
+    rateLimit({ scope: 'auth-login-email-ip', keyBy: 'ip_email', windowSeconds: 900, max: 5, failClosed: config.isProduction }),
+    rateLimit({ scope: 'auth-login-ip', keyBy: 'ip', windowSeconds: 900, max: 30, failClosed: config.isProduction }),
     asyncHandler(async (req, res) => {
       const parsed = loginSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -55,13 +56,13 @@ export function authRoutes(authService: AuthService): Router {
     return res.json({user:result.user});
   }));
 
-  router.post('/resend-verification',rateLimit({scope:'auth-resend-verification',windowSeconds:3600,max:3,failClosed:config.isProduction}),asyncHandler(async(req,res)=>{
+  router.post('/resend-verification',rateLimit({scope:'auth-resend-verification-email',keyBy:'email',windowSeconds:3600,max:3,failClosed:config.isProduction}),rateLimit({scope:'auth-resend-verification-ip',keyBy:'ip',windowSeconds:3600,max:10,failClosed:config.isProduction}),asyncHandler(async(req,res)=>{
     const email=typeof req.body?.email==='string'?req.body.email:'';
     if(email.length<=254){try{await authService.resendVerification(email.toLowerCase().trim());}catch{/* generic response */}}
     return res.status(200).json({message:'If the account needs verification, a new link will be sent.'});
   }));
 
-  router.post('/forgot-password',rateLimit({scope:'auth-forgot',windowSeconds:3600,max:3,failClosed:config.isProduction}),asyncHandler(async(req,res)=>{
+  router.post('/forgot-password',rateLimit({scope:'auth-forgot-email',keyBy:'email',windowSeconds:3600,max:3,failClosed:config.isProduction}),rateLimit({scope:'auth-forgot-ip',keyBy:'ip',windowSeconds:3600,max:10,failClosed:config.isProduction}),asyncHandler(async(req,res)=>{
     const email=typeof req.body?.email==='string'?req.body.email:'';
     if(email.length<=254){try{await authService.requestPasswordReset(email.toLowerCase().trim());}catch{/* identical public response */}}
     return res.status(200).json({message:'If an account exists for that email, password reset instructions will be sent.'});
