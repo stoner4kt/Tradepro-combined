@@ -98,6 +98,8 @@ export const settingsUpdateSchema = z.object({
   replyToEmail: email.optional(),
   currency: z.string().max(8).optional(),
   emailNotifications: z.boolean().optional(),
+  allowedOrigins: z.array(z.string().refine((value) => { try { const u = new URL(value); return u.protocol === 'https:' && u.origin === value; } catch { return false; } }, 'Use exact HTTPS origins only')).max(20).optional(),
+  dailyEmailCap: z.number().int().min(1).max(500).optional(),
 });
 
 export const sendWelcomeSchema = z.object({
