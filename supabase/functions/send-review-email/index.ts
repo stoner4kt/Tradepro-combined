@@ -15,7 +15,7 @@ export function json(data: unknown, status = 200): Response {
 }
 
 
-function adminClient(): SupabaseClient {
+function adminClient(): SupabaseClient<any, any> {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not configured as secrets on this function");
@@ -33,7 +33,7 @@ interface WidgetOwner {
   auto_send_delay_hours: number;
 }
 
-async function resolveWidgetOwner(admin: SupabaseClient, widgetKey: string): Promise<WidgetOwner | null> {
+async function resolveWidgetOwner(admin: SupabaseClient<any, any>, widgetKey: string): Promise<WidgetOwner | null> {
   const { data, error } = await admin.from("settings")
     .select("user_id, widget_api_key, auto_send_enabled, auto_send_delay_hours")
     .eq("widget_api_key", widgetKey).maybeSingle();
@@ -154,7 +154,7 @@ export function resolveTags(value: string, lead: Partial<LeadRow>, settings: Par
 }
 
 export async function sendReviewForLead(
-  admin: SupabaseClient,
+  admin: SupabaseClient<any, any>,
   leadId: string,
   userId: string,
   trigger: "auto" | "manual",
