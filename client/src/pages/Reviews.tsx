@@ -527,7 +527,7 @@ function EmailBuilderTab({ settings, onSettingsUpdated, onToast }: {
         </div>
         <div className="p-4">
           <div className="overflow-hidden rounded-xl">
-            <div className="pointer-events-none w-[125%] origin-top-left scale-[0.8]" dangerouslySetInnerHTML={{ __html: stripDocWrapper(html) }} />
+            <iframe title="Review email preview" sandbox="" srcDoc={stripDocWrapper(html)} className="h-[520px] w-full border-0 bg-white" loading="lazy" />
           </div>
         </div>
       </div>
