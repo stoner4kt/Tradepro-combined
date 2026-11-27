@@ -45,7 +45,7 @@ export function authRoutes(authService: AuthService): Router {
   router.post('/logout', (req, res) => { res.clearCookie('tradepro_session', { httpOnly: true, secure: config.isProduction, sameSite: config.isProduction ? 'none' : 'lax', domain: config.cookieDomain || undefined, path: '/' }); res.status(204).end(); });
 
 
-  router.post('/verify-email', asyncHandler(async (req,res)=>{
+  router.post('/verify-email', rateLimit({scope:'auth-verify-email',windowSeconds:3600,max:10,failClosed:config.isProduction}), asyncHandler(async (req,res)=>{
     const token=typeof req.body?.token==='string'?req.body.token:'';
     if(!token || token.length>256)return sendError(res,400,'Invalid or expired verification link');
     const result=await authService.verifyEmail(token);
