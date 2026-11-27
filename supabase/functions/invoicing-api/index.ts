@@ -389,6 +389,9 @@ serve(async (req: Request): Promise<Response> => {
     return json({ error: (err as Error).message }, 500);
   }
 
+  const {data:profile,error:profileError}=await admin.schema("public").from("profiles").select("id").eq("id",userId).maybeSingle();
+  if(profileError||!profile)return json({error:"Unauthorized"},401);
+
   const url = new URL(req.url);
   // Path layout: /functions/v1/invoicing-api/<rest...>
   const rel = url.pathname.split("/").filter(Boolean).slice(3);
