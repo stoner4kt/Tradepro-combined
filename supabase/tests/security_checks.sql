@@ -27,14 +27,6 @@ WITH table_grants AS (
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
   WHERE (n.nspname IN ('reviewflow','invoicing') OR (n.nspname='public' AND c.relname = ANY(ARRAY['profiles','settings','leads','clients','projects','email_captures','email_logs','auth_tokens','rate_limits','email_opt_outs','email_opt_out_tokens'])))
     AND c.relkind IN ('r','p') AND NOT c.relrowsecurity
-), rls_disabled AS (
-  SELECT 'RLS disabled' AS issue, n.nspname||'.'||c.relname AS object_name,
-         'enable row level security on tenant data table' AS detail
-  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-  WHERE c.relkind IN ('r','p')
-    AND n.nspname IN ('public','reviewflow','invoicing')
-    AND (c.relname='profiles' OR EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attname='user_id' AND a.attnum>0 AND NOT a.attisdropped))
-    AND NOT c.relrowsecurity
 ), policy_without_uid AS (
   SELECT 'policy missing tenant predicate' AS issue,
          schemaname||'.'||tablename||'.'||policyname AS object_name,
@@ -55,5 +47,6 @@ SELECT * FROM table_grants
 UNION ALL SELECT * FROM routine_grants
 UNION ALL SELECT * FROM unpinned
 UNION ALL SELECT * FROM rls_disabled
+UNION ALL SELECT * FROM policy_without_uid
 UNION ALL SELECT * FROM bare_uid
 ORDER BY issue, object_name, detail;
