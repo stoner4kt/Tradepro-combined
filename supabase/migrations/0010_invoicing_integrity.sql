@@ -91,3 +91,12 @@ REVOKE ALL ON FUNCTION invoicing.record_payment(uuid,uuid,bigint,text,text,text)
 GRANT EXECUTE ON FUNCTION invoicing.record_payment(uuid,uuid,bigint,text,text,text) TO service_role;
 REVOKE ALL ON FUNCTION invoicing.enforce_document_lifecycle() FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION invoicing.prevent_sent_line_mutation() FROM PUBLIC,anon,authenticated;
+
+-- Svix delivery deduplication for the Resend webhook.
+CREATE TABLE IF NOT EXISTS invoicing.webhook_receipts (
+  svix_id text PRIMARY KEY,
+  received_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE invoicing.webhook_receipts ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON invoicing.webhook_receipts FROM PUBLIC,anon,authenticated;
+GRANT ALL ON invoicing.webhook_receipts TO service_role;
