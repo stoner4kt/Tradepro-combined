@@ -4,6 +4,7 @@ import { adminClient } from "../_shared/invoicing/supabase.ts";
 
 import { verifySvix } from "../_shared/svix.ts";
 
+const encoder = new TextEncoder();
 const STATUS_MAP:Record<string,string>={
  "email.delivered":"delivered","email.bounced":"bounced","email.complained":"complained",
  "email.sent":"sent","email.opened":"sent","email.clicked":"sent"
