@@ -86,6 +86,16 @@ describe('Auth API', () => {
     expect(reset.status).toBe(400);
   });
 
+  it('requires authentication and password re-entry for account deletion', async () => {
+    const unauthenticated = await request(app).delete('/api/auth/account').send({ password: PASSWORD });
+    expect(unauthenticated.status).toBe(401);
+    const reg = await request(app).post('/api/auth/register').send({ email: 'delete@example.com', password: PASSWORD });
+    const response = await request(app).delete('/api/auth/account')
+      .set('Authorization', `Bearer ${sessionToken(reg)}`)
+      .send({ password: PASSWORD });
+    expect(response.status).toBe(400);
+  });
+
   it('requires authentication for the privacy export endpoint', async () => {
     const unauthenticated = await request(app).get('/api/auth/export');
     expect(unauthenticated.status).toBe(401);
