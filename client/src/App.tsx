@@ -14,6 +14,7 @@ const LedgerPage = lazy(() => import('./pages/Ledger.js'));
 const ReviewsPage = lazy(() => import('./pages/Reviews.js'));
 const InvoicingPage = lazy(() => import('./pages/Invoicing.js'));
 const PublicDocumentPage = lazy(() => import('./pages/PublicDocument.js'));
+const { PrivacyPage, TermsPage } = await import('./pages/Legal.js').then(module => ({ PrivacyPage: module.PrivacyPage, TermsPage: module.TermsPage }));
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -92,6 +93,8 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route
             path="/register"
             element={
