@@ -385,6 +385,9 @@ export class LocalStore implements Store {
 
   async createProject(userId: string, input: NewProjectInput): Promise<Project> {
     return this.mutex.run(async () => {
+      const ownedClient=this.rows.some(r=>r.kind==='client'&&r.data.id===input.clientId&&r.data.userId===userId);
+      if(!ownedClient)throw new Error('Client not found');
+      if(input.leadId&&!this.rows.some(r=>r.kind==='lead'&&r.data.id===input.leadId&&r.data.userId===userId))throw new Error('Lead not found');
       const ts = this.now();
       const project: Project = {
         id: idOf(),
@@ -419,6 +422,8 @@ export class LocalStore implements Store {
         (r) => r.kind === 'project' && r.data.id === projectId && r.data.userId === userId,
       );
       if (!r || r.kind !== 'project') return null;
+      if(patch.clientId!==undefined&&!this.rows.some(x=>x.kind==='client'&&x.data.id===patch.clientId&&x.data.userId===userId))return null;
+      if(patch.leadId&&!this.rows.some(x=>x.kind==='lead'&&x.data.id===patch.leadId&&x.data.userId===userId))return null;
       const p = r.data;
       if (patch.clientId !== undefined) p.clientId = patch.clientId;
       if (patch.leadId !== undefined) p.leadId = patch.leadId ?? null;
