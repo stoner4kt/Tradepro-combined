@@ -142,6 +142,7 @@ export function productionConfigErrors(): string[] {
     errors.push('CORS_ORIGIN must be one exact HTTPS origin');
   }
   const appOrigin = process.env.APP_ORIGIN || '';
+  if (origin !== appOrigin) errors.push('CORS_ORIGIN must match APP_ORIGIN');
   const apiOrigin = process.env.API_ORIGIN || '';
   const cookieDomain = process.env.COOKIE_DOMAIN || '';
   try { const parsed = new URL(appOrigin); if (parsed.protocol !== 'https:' || parsed.origin !== appOrigin) errors.push('APP_ORIGIN must be one exact HTTPS origin'); } catch { errors.push('APP_ORIGIN must be one exact HTTPS origin'); }
