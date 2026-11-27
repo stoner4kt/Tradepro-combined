@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { requireIntegrationSecret, isUuid } from "../_shared/security.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
 
 const CORS = {
@@ -21,19 +22,9 @@ function adminClient(): SupabaseClient {
   return createClient(url, key, { db: { schema: "reviewflow" } });
 }
 
-function checkIntegrationSecret(req: Request): boolean {
-  const expected = Deno.env.get("INTEGRATION_SECRET");
-  if (!expected) return true;
-  const provided = req.headers.get("x-integration-secret");
-  return provided !== null && provided === expected;
-}
+function checkIntegrationSecret(req: Request): boolean { return requireIntegrationSecret(req); }
 
-function userIdFromRequest(req: Request): string | null {
-  const raw = req.headers.get("x-user-id");
-  if (!raw) return null;
-  const id = raw.trim();
-  return id.length > 0 && id.length <= 64 ? id : null;
-}
+function userIdFromRequest(req: Request): string | null { const raw=req.headers.get("x-user-id"); if(!raw)return null; const id=raw.trim(); return isUuid(id)?id:null; }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
