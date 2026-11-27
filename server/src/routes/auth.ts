@@ -20,7 +20,7 @@ export function authRoutes(authService: AuthService): Router {
       }
       const result = await authService.register(parsed.data);
       if ('pending' in result) return res.status(202).json({ message: result.message });
-      if (!isSuccess(result)) return sendError(res, result.status, 'Unable to register with these details');
+      if (!isSuccess(result)) return sendError(res, 400, 'Unable to register with these details');
       if (result.token) res.cookie('tradepro_session', result.token, { httpOnly: true, secure: config.isProduction, sameSite: config.isProduction ? 'none' : 'lax', domain: config.cookieDomain || undefined, path: '/', maxAge: 8 * 60 * 60 * 1000 });
       res.status(201).json({ user: result.user, provider: result.provider });
     }),
