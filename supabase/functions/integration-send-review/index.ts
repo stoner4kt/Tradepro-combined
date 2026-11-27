@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
+import { requireIntegrationSecret, isUuid } from "../_shared/security.ts";
 export const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "content-type, authorization, x-widget-key, x-integration-secret, x-internal-call, x-user-id",
@@ -21,18 +22,13 @@ function adminClient(): SupabaseClient {
   return createClient(url, key, { db: { schema: "reviewflow" } });
 }
 
-function checkIntegrationSecret(req: Request): boolean {
-  const expected = Deno.env.get("INTEGRATION_SECRET");
-  if (!expected) return true;
-  const provided = req.headers.get("x-integration-secret");
-  return provided !== null && provided === expected;
-}
+function checkIntegrationSecret(req: Request): boolean { return requireIntegrationSecret(req); }
 
 function userIdFromRequest(req: Request): string | null {
   const raw = req.headers.get("x-user-id");
   if (!raw) return null;
   const id = raw.trim();
-  return id.length > 0 && id.length <= 64 ? id : null;
+  return isUuid(id) ? id : null;
 }
 
 interface WidgetOwner {
@@ -188,6 +184,12 @@ export async function sendReviewForLead(
     brandColor: s.email_brand_color,
   });
 
+  const {data:ownerSettings}=await admin.schema("public").from("settings").select("daily_email_cap").eq("user_id",userId).maybeSingle();
+  const dailyCap=Math.max(1,Math.min(500,Number(ownerSettings?.daily_email_cap||50)));
+  const {data:limitRows,error:limitError}=await admin.schema("public").rpc("rate_limit_hit",{p_key:`review-email:${userId}`,p_window_seconds:86400,p_max:dailyCap});
+  const limit=Array.isArray(limitRows)?limitRows[0]:limitRows;
+  if(limitError || !limit?.allowed)return {ok:false,status:429,body:{error:"Daily review email limit reached"}};
+
   const fromEmail = String(s.review_from_email || "");
   if (!fromEmail) {
     return { ok: false, status: 400, body: { error: "review_from_email is not configured. Verify a sender domain in Resend first." } };
@@ -225,9 +227,9 @@ export async function sendReviewForLead(
   });
 
   await admin.from("leads").update({
-    status:     "review_sent",
+    status: "review_sent", review_sent_at: new Date().toISOString(), review_send_claimed_at: null,
     updated_at: new Date().toISOString(),
-  }).eq("id", leadRow.id);
+  }).eq("id", leadRow.id).eq("user_id",userId);
 
   return { ok: true, status: 200, body: { success: true, message_id: (resendData as { id?: string }).id } };
 }
@@ -248,18 +250,28 @@ serve(async (req) => {
 
   if (!checkIntegrationSecret(req)) return json({ error: "Unauthorized" }, 401);
 
-  const userId = userIdFromRequest(req);
-  if (!userId) return json({ error: "x-user-id header is required" }, 400);
-
   let body: Record<string, unknown>;
   try { body = await req.json(); }
   catch { return json({ error: "Invalid JSON" }, 400); }
 
+  const admin = adminClient();
+  if (body.mode === "scheduled") {
+    const {data:due,error}=await admin.rpc("claim_due_review_emails",{p_limit:20});
+    if(error)return json({error:"Unable to claim scheduled reviews"},500);
+    let sent=0,failed=0;
+    for(const lead of (due||[]) as LeadRow[]){
+      const result=await sendReviewForLead(admin,lead.id,lead.user_id,"auto");
+      if(result.ok)sent++;
+      else {failed++;await admin.from("leads").update({review_send_claimed_at:null}).eq("id",lead.id).eq("user_id",lead.user_id);}
+    }
+    return json({ok:true,claimed:(due||[]).length,sent,failed});
+  }
+
+  const userId = userIdFromRequest(req);
+  if (!userId) return json({ error: "x-user-id header is required" }, 400);
   const email = String(body.email || "").toLowerCase().trim();
   const externalId = body.external_id ? String(body.external_id).trim() : null;
   if (!email && !externalId) return json({ error: "email or external_id is required" }, 400);
-
-  const admin = adminClient();
 
   let query = admin.from("leads").select("*").eq("email", email).eq("user_id", userId).limit(1);
   if (externalId) query = admin.from("leads").select("*").eq("external_id", externalId).eq("user_id", userId).limit(1);
