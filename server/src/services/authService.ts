@@ -65,6 +65,37 @@ export class AuthService {
     return this.admin !== null;
   }
 
+  async exportUserData(userId: string): Promise<Record<string, unknown> | null> {
+    if (!this.admin) return null;
+    const tables = [
+      { schema: 'public', table: 'profiles', owner: 'id' },
+      { schema: 'public', table: 'settings', owner: 'user_id' },
+      { schema: 'public', table: 'clients', owner: 'user_id' },
+      { schema: 'public', table: 'leads', owner: 'user_id' },
+      { schema: 'public', table: 'projects', owner: 'user_id' },
+      { schema: 'public', table: 'email_captures', owner: 'user_id' },
+      { schema: 'public', table: 'email_logs', owner: 'user_id' },
+      { schema: 'public', table: 'email_opt_outs', owner: 'user_id' },
+      { schema: 'reviewflow', table: 'settings', owner: 'user_id' },
+      { schema: 'reviewflow', table: 'leads', owner: 'user_id' },
+      { schema: 'reviewflow', table: 'review_requests', owner: 'user_id' },
+      { schema: 'invoicing', table: 'settings', owner: 'user_id' },
+      { schema: 'invoicing', table: 'customers', owner: 'user_id' },
+      { schema: 'invoicing', table: 'documents', owner: 'user_id' },
+      { schema: 'invoicing', table: 'document_lines', owner: 'user_id' },
+      { schema: 'invoicing', table: 'payments', owner: 'user_id' },
+      { schema: 'invoicing', table: 'email_events', owner: 'user_id' },
+    ];
+    const exported: Record<string, unknown> = { exported_at: new Date().toISOString(), user_id: userId, tables: {} };
+    const rows = exported.tables as Record<string, unknown>;
+    for (const item of tables) {
+      const { data, error } = await this.admin.schema(item.schema).from(item.table).select('*').eq(item.owner, userId);
+      if (error) throw new Error(`Export failed for ${item.schema}.${item.table}`);
+      rows[`${item.schema}.${item.table}`] = data ?? [];
+    }
+    return exported;
+  }
+
   async allowAuthenticatedRequest(userId: string): Promise<{ allowed: boolean; retryAfter: number }> {
     if (!this.admin) return { allowed: true, retryAfter: 0 };
     try {
