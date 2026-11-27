@@ -290,6 +290,8 @@ serve(async (req) => {
 
   const userId = userIdFromRequest(req);
   if (!userId) return json({ error: "x-user-id header is required" }, 400);
+  const { data: profile, error: profileError } = await admin.schema("public").from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (profileError || !profile) return json({ error: "Unknown tenant" }, 403);
   const email = String(body.email || "").toLowerCase().trim();
   const externalId = body.external_id ? String(body.external_id).trim() : null;
   if (!email && !externalId) return json({ error: "email or external_id is required" }, 400);
