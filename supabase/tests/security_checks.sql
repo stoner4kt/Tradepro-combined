@@ -27,6 +27,21 @@ WITH table_grants AS (
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
   WHERE (n.nspname IN ('reviewflow','invoicing') OR (n.nspname='public' AND c.relname = ANY(ARRAY['profiles','settings','leads','clients','projects','email_captures','email_logs','auth_tokens','rate_limits','email_opt_outs','email_opt_out_tokens'])))
     AND c.relkind IN ('r','p') AND NOT c.relrowsecurity
+), rls_disabled AS (
+  SELECT 'RLS disabled' AS issue, n.nspname||'.'||c.relname AS object_name,
+         'enable row level security on tenant data table' AS detail
+  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE c.relkind IN ('r','p')
+    AND n.nspname IN ('public','reviewflow','invoicing')
+    AND NOT c.relrowsecurity
+), policy_without_uid AS (
+  SELECT 'policy missing tenant predicate' AS issue,
+         schemaname||'.'||tablename||'.'||policyname AS object_name,
+         coalesce(qual,'')||' '||coalesce(with_check,'') AS detail
+  FROM pg_policies
+  WHERE schemaname IN ('public','reviewflow','invoicing')
+    AND NOT ('service_role'=ANY(roles))
+    AND (coalesce(qual,'')||' '||coalesce(with_check,'')) !~* 'auth[.]uid'
 ), bare_uid AS (
   SELECT 'bare auth.uid policy' AS issue, schemaname||'.'||tablename||'.'||policyname AS object_name,
          coalesce(qual,'')||' '||coalesce(with_check,'') AS detail
