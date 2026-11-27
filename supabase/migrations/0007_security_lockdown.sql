@@ -20,7 +20,7 @@ BEGIN
     FOR r IN
       SELECT p.oid::regprocedure AS signature
       FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-      WHERE n.nspname=s
+      WHERE n.nspname=s AND p.prokind='f'
     LOOP
       EXECUTE format('ALTER FUNCTION %s SET search_path = pg_catalog, public, reviewflow, invoicing', r.signature);
     END LOOP;
