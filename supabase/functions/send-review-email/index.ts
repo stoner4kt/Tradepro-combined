@@ -187,7 +187,7 @@ export async function sendReviewForLead(
   const {error:unsubscribeError}=await admin.schema("public").from("email_opt_out_tokens").insert({user_id:userId,email:leadRow.email.toLowerCase(),token_hash:unsubscribeHash,expires_at:new Date(Date.now()+180*86400000).toISOString()});
   if(unsubscribeError)return {ok:false,status:500,body:{error:"Unable to prepare unsubscribe link"}};
   const supabaseUrl=Deno.env.get("SUPABASE_URL")||"";
-  const unsubscribeUrl=supabaseUrl.replace(/\\/+$/,"")+"/functions/v1/reviewflow-unsubscribe?token="+encodeURIComponent(unsubscribeToken);
+  const unsubscribeUrl=supabaseUrl.replace(/\/+$/,"")+"/functions/v1/reviewflow-unsubscribe?token="+encodeURIComponent(unsubscribeToken);
   const emailHtml=html+'<p style="font-size:12px;color:#64748b;text-align:center;margin-top:24px"><a href="'+unsubscribeUrl+'">Unsubscribe from review-request emails</a></p>';
   const {data:optOut}=await admin.schema("public").from("email_opt_outs").select("id").eq("user_id",userId).eq("email",leadRow.email.toLowerCase()).maybeSingle();
   if(optOut)return {ok:false,status:409,body:{error:"Recipient has opted out"}};
