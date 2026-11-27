@@ -72,13 +72,16 @@ export const login = (email: string, password: string) =>
   request<AuthResult>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
 
 export const register = (payload: { email: string; password: string; fullName?: string; businessName?: string }) =>
-  request<{ user: import('../types/api.js').User }>('/auth/register', {
+  request<{ user?: import('../types/api.js').User; message?: string }>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 
 export const me = () => request<{ user: import('../types/api.js').User }>('/auth/me');
 export const logout = () => request<void>('/auth/logout', { method: 'POST' });
+export const verifyEmail = (token: string) => request<{user: import('../types/api.js').User}>('/auth/verify-email',{method:'POST',body:JSON.stringify({token})});
+export const forgotPassword = (email:string) => request<{message:string}>('/auth/forgot-password',{method:'POST',body:JSON.stringify({email})});
+export const resetPassword = (token:string,password:string) => request<{message:string}>('/auth/reset-password',{method:'POST',body:JSON.stringify({token,password})});
 
 export const updateProfile = (patch: Record<string, unknown>) =>
   request<{ user: import('../types/api.js').User }>('/auth/profile', { method: 'PATCH', body: JSON.stringify(patch) });
