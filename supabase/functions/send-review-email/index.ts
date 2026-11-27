@@ -162,6 +162,7 @@ export async function sendReviewForLead(
   const { data: lead, error: leadError } = await admin
     .from("leads").select("*").eq("id", leadId).eq("user_id", userId).maybeSingle();
   if (leadError || !lead) return { ok: false, status: 404, body: { error: "Lead not found" } };
+  if (lead.status !== "complete") return { ok: false, status: 409, body: { error: "Lead is not eligible for a review request" } };
 
   const { data: settings } = await admin.from("settings").select("*").eq("user_id", userId).single();
   if (!settings) return { ok: false, status: 500, body: { error: "Settings not configured" } };
@@ -179,17 +180,26 @@ export async function sendReviewForLead(
     brandColor: s.email_brand_color,
   });
 
+  const {data:optOut}=await admin.schema("public").from("email_opt_outs").select("id").eq("user_id",userId).eq("email",leadRow.email.toLowerCase()).maybeSingle();
+  if(optOut)return {ok:false,status:409,body:{error:"Recipient has opted out"}};
+
   const fromEmail = String(s.review_from_email || "");
   if (!fromEmail) {
     return { ok: false, status: 400, body: { error: "review_from_email is not configured. Verify a sender domain in Resend first." } };
   }
+
+  const {data:ownerSettings}=await admin.schema("public").from("settings").select("daily_email_cap").eq("user_id",userId).maybeSingle();
+  const dailyCap=Math.max(1,Math.min(500,Number(ownerSettings?.daily_email_cap||50)));
+  const {data:limitRows,error:limitError}=await admin.schema("public").rpc("rate_limit_hit",{p_key:"review-email:"+userId,p_window_seconds:86400,p_max:dailyCap});
+  const limit=Array.isArray(limitRows)?limitRows[0]:limitRows;
+  if(limitError||!limit?.allowed)return {ok:false,status:429,body:{error:"Daily review email limit reached"}};
 
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
   if (!resendApiKey) return { ok: false, status: 500, body: { error: "RESEND_API_KEY is not configured" } };
 
   const resendRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+    headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json", "Idempotency-Key": "tradepro-review-" + leadRow.id },
     body: JSON.stringify({
       from: s.review_from_name ? `${s.review_from_name} <${fromEmail}>` : fromEmail,
       to: [leadRow.email],
@@ -204,7 +214,7 @@ export async function sendReviewForLead(
   }
 
   const recipient = `${leadRow.first_name || ""} ${leadRow.last_name || ""}`.trim() || undefined;
-  await admin.from("review_requests").insert({
+  const {error:logError}=await admin.from("review_requests").insert({
     user_id:           userId,
     lead_id:           leadRow.id,
     recipient_email:   leadRow.email,
@@ -214,11 +224,13 @@ export async function sendReviewForLead(
     status:            "sent",
     triggered_by:      trigger,
   });
+  if(logError)return {ok:false,status:500,body:{error:"Email sent but delivery record could not be saved; retry is safe"}};
 
-  await admin.from("leads").update({
-    status:     "review_sent",
+  const {error:updateError}=await admin.from("leads").update({
+    status: "review_sent", review_sent_at: new Date().toISOString(), review_send_claimed_at: null,
     updated_at: new Date().toISOString(),
-  }).eq("id", leadRow.id);
+  }).eq("id", leadRow.id).eq("user_id",userId);
+  if(updateError)return {ok:false,status:500,body:{error:"Email sent but lead status could not be updated; retry is safe"}};
 
   return { ok: true, status: 200, body: { success: true, message_id: (resendData as { id?: string }).id } };
 }
