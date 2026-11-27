@@ -52,6 +52,8 @@ const EMPTY_SETTINGS: InvoicingSettings = {
   next_invoice_number: 1,
   next_quote_number: 1,
   bank_details: '',
+  business_address: '',
+  tax_number: '',
   notes: '',
 };
 
@@ -365,6 +367,8 @@ function SettingsForm({ settings, onSaved }: { settings: InvoicingSettings; onSa
         invoice_prefix: form.invoice_prefix,
         quote_prefix: form.quote_prefix,
         bank_details: form.bank_details,
+        business_address: form.business_address,
+        tax_number: form.tax_number,
         notes: form.notes,
       });
       onSaved(res.settings);
@@ -412,6 +416,12 @@ function SettingsForm({ settings, onSaved }: { settings: InvoicingSettings; onSa
           <Input value={form.quote_prefix} onChange={(e) => set('quote_prefix', e.target.value)} />
         </Field>
       </div>
+      <Field label="Business address (shown on shared documents)">
+        <Textarea value={form.business_address} onChange={(e) => set('business_address', e.target.value)} />
+      </Field>
+      <Field label="VAT / tax registration number">
+        <Input value={form.tax_number} onChange={(e) => set('tax_number', e.target.value)} />
+      </Field>
       <Field label="Bank / payment details (shown on invoices)">
         <Textarea value={form.bank_details} onChange={(e) => set('bank_details', e.target.value)} />
       </Field>
