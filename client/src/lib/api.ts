@@ -282,3 +282,5 @@ export const updateInvoicingSettings = (patch: Record<string, unknown>) =>
 
 export const getInvoicingRevenue = () =>
   request<InvoicingRevenue>('/invoicing/revenue');
+export const exportAccountData = () => request<Record<string, unknown>>('/auth/export');
+export const deleteAccount = (password: string) => request<void>('/auth/account', { method: 'DELETE', body: JSON.stringify({ password }) });
