@@ -46,6 +46,7 @@ export function authRoutes(authService: AuthService): Router {
   router.get('/export', requireAuth, asyncHandler(async (req,res) => {
     const user=(req as AuthedRequest).user!;
     const data=await authService.exportUserData(user.id);
+    if (!data) return sendError(res,501,'Data export is available on the connected account service only');
     res.setHeader('Cache-Control','no-store');
     res.setHeader('Content-Disposition','attachment; filename="tradepro-account-export.json"');
     res.json(data);
