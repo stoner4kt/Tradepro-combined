@@ -39,5 +39,5 @@ serve(async(req:Request):Promise<Response>=>{
  const {data:lines,error:lineError}=await admin.from("document_lines").select("description,quantity,unit_price_minor,sort_order").eq("document_id",doc.id).eq("user_id",doc.user_id).order("sort_order",{ascending:true});
  if(lineError)return json({error:"Unable to load document"},500);
  const {data:issuer}=await admin.from("settings").select("business_name,email,phone,business_address,tax_number,bank_details,notes,currency,locale").eq("user_id",doc.user_id).maybeSingle();
- return json({document:doc,lines:lines||[],issuer:issuer||{}});
+ return json({document:{kind:doc.kind,number:doc.number,status:doc.status,customer_snapshot:doc.customer_snapshot,issue_date:doc.issue_date,due_date:doc.due_date,quote_valid_until:doc.quote_valid_until,title:doc.title,notes:doc.notes,currency:doc.currency,subtotal_minor:doc.subtotal_minor,tax_minor:doc.tax_minor,total_minor:doc.total_minor,amount_paid_minor:doc.amount_paid_minor,expires_at:doc.expires_at},lines:lines||[],issuer:issuer||{}});
 });
