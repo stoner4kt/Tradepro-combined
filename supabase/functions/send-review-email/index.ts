@@ -233,7 +233,7 @@ export async function sendReviewForLead(
     status:            "sent",
     triggered_by:      trigger,
   });
-  if(logError)return {ok:false,status:500,body:{error:"Email sent but delivery record could not be saved; retry is safe"}};
+  if(logError && logError.code !== '23505')return {ok:false,status:500,body:{error:"Email sent but delivery record could not be saved; retry is safe"}};
 
   const {error:updateError}=await admin.from("leads").update({
     status: "review_sent", review_sent_at: new Date().toISOString(), review_send_claimed_at: null,
