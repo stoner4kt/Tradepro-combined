@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { AuthService, isSuccess } from '../services/authService.js';
 import { asyncHandler, sendError } from '../lib/http.js';
-import { loginSchema, registerSchema, profileUpdateSchema } from '../utils/validation.js';
+import { loginSchema, registerSchema, profileUpdateSchema, passwordChangeSchema } from '../utils/validation.js';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import type { Store } from '../store/Store.js';
 import { rateLimit } from '../middleware/rateLimit.js';
@@ -91,6 +91,17 @@ export function authRoutes(authService: AuthService): Router {
       res.json({ user: (req as AuthedRequest).user });
     }),
   );
+
+  router.post('/change-password',requireAuth,asyncHandler(async(req,res)=>{
+    const parsed=passwordChangeSchema.safeParse(req.body);
+    if(!parsed.success)return sendError(res,400,'Invalid password change request');
+    const user=(req as AuthedRequest).user!;
+    const token=await authService.changePassword(user.id,parsed.data.currentPassword,parsed.data.newPassword);
+    if(!token)return sendError(res,400,'Current password is incorrect or the new password does not meet policy');
+    res.cookie('tradepro_session',token,{httpOnly:true,secure:config.isProduction,sameSite:'lax',domain:config.cookieDomain||undefined,path:'/',maxAge:8*60*60*1000});
+    res.setHeader('Cache-Control','no-store');
+    return res.json({message:'Password updated'});
+  }));
 
   router.patch(
     '/profile',
