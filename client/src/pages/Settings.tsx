@@ -11,6 +11,8 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
@@ -167,6 +169,29 @@ export default function SettingsPage() {
               <Link to="/privacy" className="font-medium text-brand-600 hover:underline">Privacy notice</Link>
               <Link to="/terms" className="font-medium text-brand-600 hover:underline">Terms of service</Link>
             </div>
+          </Card>
+          <Card title="Privacy and account data" subtitle="Export your TradePro data or permanently delete your account.">
+            <div className="flex flex-wrap gap-3">
+              <Button type="button" variant="secondary" onClick={async () => {
+                try {
+                  const data = await api.exportAccountData();
+                  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url; link.download = 'tradepro-account-export.json'; link.click();
+                  URL.revokeObjectURL(url);
+                } catch { setError('Unable to export account data. Please try again.'); }
+              }}>Export my data</Button>
+              <Button type="button" color="danger" onClick={() => setDeleteConfirm(true)}>Delete account</Button>
+            </div>
+            {deleteConfirm ? <div className="mt-4 space-y-3 rounded-xl border border-red-200 bg-red-50 p-4">
+              <p className="text-sm font-semibold text-red-900">This permanently deletes your account and associated CRM, ReviewFlow and Invoicing data.</p>
+              <Field label="Confirm your current password"><Input type="password" autoComplete="current-password" value={deletePassword} onChange={e=>setDeletePassword(e.target.value)} /></Field>
+              <div className="flex gap-2">
+                <Button type="button" color="danger" disabled={!deletePassword} onClick={async()=>{try{await api.deleteAccount(deletePassword);window.location.assign('/login');}catch{setError('Account deletion failed. Check your password and try again.');}finally{setDeletePassword('');setDeleteConfirm(false);}}}>Permanently delete</Button>
+                <Button type="button" variant="secondary" onClick={()=>{setDeleteConfirm(false);setDeletePassword('');}}>Cancel</Button>
+              </div>
+            </div>:null}
           </Card>
         </div>
       </div>
