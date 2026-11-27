@@ -141,10 +141,10 @@ serve(async (req: Request): Promise<Response> => {
         settings = s as SettingsRow | null;
       } catch { /* keep null */ }
       for (const doc of userDocs) {
+        if (dryRun) { written.push({document_id:doc.id,number:doc.number,status:"dry_run"}); continue; }
         let result: {status:string;message_id:string|null;error?:string};
         try { result = await sendReminderEmail(doc, settings ?? { business_name: "", email: "", reply_to_email: "", business_email: "" }); }
         catch (err) { result = {status:"failed",message_id:null,error:(err as Error).message}; }
-        if (dryRun) continue;
         if (result.status === "sent") {
           await admin.from("reminder_claims").update({sent_at:new Date().toISOString()}).eq("document_id",doc.id).eq("due_date",doc.due_date);
         } else {
