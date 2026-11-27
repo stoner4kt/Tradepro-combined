@@ -68,6 +68,7 @@ export class AuthService {
   private async passwordPolicyError(password:string):Promise<string|null>{
     if(password.length<10||password.length>128)return 'Password must be 10–128 characters';
     if(new Set(['password123','password1234','1234567890','qwerty12345','letmein1234','welcome1234']).has(password.toLowerCase()))return 'Choose a less common password';
+    if(config.nodeEnv==='test')return null;
     if (process.env.NODE_ENV === 'test') return null;
     try{
       const digest=await crypto.subtle.digest('SHA-1',new TextEncoder().encode(password));
