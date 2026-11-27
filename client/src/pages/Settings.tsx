@@ -3,6 +3,7 @@ import * as api from '../lib/api.js';
 import type { Settings } from '../types/api.js';
 import { Alert, Button, Card, Field, Input, PageHeader, Select, Spinner, Textarea } from '../components/ui.js';
 import { useAuth } from '../contexts/AuthContext.js';
+import { Link } from 'react-router-dom';
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
@@ -10,6 +11,7 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     void api.getSettings().then((r) => setSettings(r.settings)).catch((e) => setError(e instanceof Error ? e.message : 'Failed to load settings'));
@@ -149,6 +151,22 @@ export default function SettingsPage() {
                 <Button type="submit" disabled={busy} className="w-full sm:w-auto">{busy ? 'Saving…' : 'Save email settings'}</Button>
               </div>
             </form>
+          </Card>
+          <Card title="Privacy & data" subtitle="Manage your information and legal notices">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-ink">Export my data</p>
+                <p className="text-xs text-muted">Download a JSON copy of your CRM, Reviews and Invoicing records.</p>
+              </div>
+              <Button variant="secondary" disabled={exporting} onClick={() => {
+                setExporting(true);
+                void api.exportMyData().catch((err) => setError(err instanceof Error ? err.message : 'Export failed')).finally(() => setExporting(false));
+              }}>{exporting ? 'Preparing…' : 'Export data'}</Button>
+            </div>
+            <div className="mt-4 flex gap-4 border-t border-[#eef1f6] pt-3 text-sm">
+              <Link to="/privacy" className="font-medium text-brand-600 hover:underline">Privacy notice</Link>
+              <Link to="/terms" className="font-medium text-brand-600 hover:underline">Terms of service</Link>
+            </div>
           </Card>
         </div>
       </div>
