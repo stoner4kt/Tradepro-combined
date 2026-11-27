@@ -41,5 +41,6 @@
   },
   "engines": {
     "node": ">=22"
-  }
+  },
+  "description": "TradePro API and scheduled Worker runtime"
 }
