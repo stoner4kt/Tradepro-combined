@@ -16,12 +16,12 @@ export function signUserToken(user: Pick<User, 'id' | 'email' | 'fullName' | 'bu
     full_name: user.fullName,
     business_name: user.businessName,
   };
-  return jwt.sign(claims, config.jwtSecret, { expiresIn: config.jwtExpiresIn as jwt.SignOptions['expiresIn'] });
+  return jwt.sign(claims, config.jwtSecret, { algorithm: 'HS256', issuer: 'tradepro-api', audience: 'tradepro-client', expiresIn: '8h' });
 }
 
 export function verifyUserToken(token: string): UserClaims | null {
   try {
-    return jwt.verify(token, config.jwtSecret) as UserClaims;
+    return jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'], issuer: 'tradepro-api', audience: 'tradepro-client' }) as UserClaims;
   } catch {
     return null;
   }
