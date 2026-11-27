@@ -283,7 +283,12 @@ serve(async (req) => {
     for(const lead of (due||[]) as LeadRow[]){
       const result=await sendReviewForLead(admin,lead.id,lead.user_id,"auto");
       if(result.ok)sent++;
-      else {failed++;await admin.from("leads").update({review_send_claimed_at:null}).eq("id",lead.id).eq("user_id",lead.user_id);}
+      else {
+        failed++;
+        const release:Record<string,unknown>={review_send_claimed_at:null};
+        if(result.status===409)release.review_send_after=null;
+        await admin.from("leads").update(release).eq("id",lead.id).eq("user_id",lead.user_id);
+      }
     }
     return json({ok:true,claimed:(due||[]).length,sent,failed});
   }
