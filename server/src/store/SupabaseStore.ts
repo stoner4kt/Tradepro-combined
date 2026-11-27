@@ -216,9 +216,9 @@ export class SupabaseStore implements Store {
 
   async deleteLead(userId: string, leadId: string): Promise<boolean> {
     this.assertSet();
-    const { error } = await this.sb.from('leads').delete().eq('id', leadId).eq('user_id', userId);
+    const { data, error } = await this.sb.from('leads').delete().eq('id', leadId).eq('user_id', userId).select('id').maybeSingle();
     if (error) throw new Error(`deleteLead failed: ${error.message}`);
-    return true;
+    return Boolean(data);
   }
 
   // ---- Clients ------------------------------------------------------------
@@ -298,9 +298,9 @@ export class SupabaseStore implements Store {
 
   async deleteClient(userId: string, clientId: string): Promise<boolean> {
     this.assertSet();
-    const { error } = await this.sb.from('clients').delete().eq('id', clientId).eq('user_id', userId);
+    const { data, error } = await this.sb.from('clients').delete().eq('id', clientId).eq('user_id', userId).select('id').maybeSingle();
     if (error) throw new Error(`deleteClient failed: ${error.message}`);
-    return true;
+    return Boolean(data);
   }
 
   // ---- Projects -----------------------------------------------------------
@@ -332,6 +332,8 @@ export class SupabaseStore implements Store {
 
   async createProject(userId: string, input: NewProjectInput): Promise<Project> {
     this.assertSet();
+    if (!(await this.getClient(userId, input.clientId))) throw new Error('Project client not found');
+    if (input.leadId && !(await this.getLead(userId, input.leadId))) throw new Error('Project lead not found');
     const { data, error } = await this.sb
       .from('projects')
       .insert({
@@ -348,10 +350,13 @@ export class SupabaseStore implements Store {
         est_value: input.estValue ?? 0,
         notes: input.notes ?? '',
       })
-      .select(`${PROJECT_COLUMNS}, clients(first_name,last_name,email), leads(email)`)
+      .select(PROJECT_COLUMNS)
       .single();
     if (error) throw new Error(`createProject failed: ${error.message}`);
-    return mapProject(data);
+    const project = mapProject(data);
+    const client = await this.getClient(userId, project.clientId);
+    const lead = project.leadId ? await this.getLead(userId, project.leadId) : null;
+    return { ...project, clientName: client ? [client.firstName,client.lastName].filter(Boolean).join(' ') : '', clientEmail: client?.email || '', leadEmail: lead?.email || '' };
   }
 
   async updateProject(
@@ -360,6 +365,8 @@ export class SupabaseStore implements Store {
     patch: Partial<NewProjectInput>,
   ): Promise<Project | null> {
     this.assertSet();
+    if (patch.clientId !== undefined && !(await this.getClient(userId, patch.clientId))) return null;
+    if (patch.leadId && !(await this.getLead(userId, patch.leadId))) return null;
     const body: Record<string, unknown> = {};
     if (patch.clientId !== undefined) body.client_id = patch.clientId;
     if (patch.leadId !== undefined) body.lead_id = patch.leadId ?? null;
@@ -378,17 +385,21 @@ export class SupabaseStore implements Store {
       .update(body)
       .eq('id', projectId)
       .eq('user_id', userId)
-      .select(`${PROJECT_COLUMNS}, clients(first_name,last_name,email), leads(email)`)
+      .select(PROJECT_COLUMNS)
       .maybeSingle();
     if (error) throw new Error(`updateProject failed: ${error.message}`);
-    return data ? mapProject(data) : null;
+    if (!data) return null;
+    const project = mapProject(data);
+    const client = await this.getClient(userId, project.clientId);
+    const lead = project.leadId ? await this.getLead(userId, project.leadId) : null;
+    return { ...project, clientName: client ? [client.firstName,client.lastName].filter(Boolean).join(' ') : '', clientEmail: client?.email || '', leadEmail: lead?.email || '' };
   }
 
   async deleteProject(userId: string, projectId: string): Promise<boolean> {
     this.assertSet();
-    const { error } = await this.sb.from('projects').delete().eq('id', projectId).eq('user_id', userId);
+    const { data, error } = await this.sb.from('projects').delete().eq('id', projectId).eq('user_id', userId).select('id').maybeSingle();
     if (error) throw new Error(`deleteProject failed: ${error.message}`);
-    return true;
+    return Boolean(data);
   }
 
   // ---- Settings -----------------------------------------------------------
