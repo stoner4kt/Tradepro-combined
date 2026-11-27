@@ -1,23 +1,47 @@
-# Go-live owner checklist (incomplete hardening branch)
+# Go-live owner checklist
 
-This checklist is intentionally conservative. The current `hardening/go-live` branch is a partial implementation tranche and is **not production-ready**.
+The `hardening/go-live` branch contains a broad hardening implementation, but is **not yet approved for production**. Complete this checklist in staging and record evidence in PR #7 before deployment.
 
-## Before any deployment
+## Supabase staging
 
-- [ ] Resume the Supabase project and confirm backups/export are available.
-- [ ] Review all pending migrations in staging first. In particular, migration 0007 revokes anon/authenticated/PUBLIC access and changes function search paths; validate service-role access for every Worker and edge-function path before applying.
-- [ ] Apply migrations in numeric order only after review: 0007, 0008, then future 0009 onward when authored.
-- [ ] Run `supabase/tests/security_checks.sql` in the Supabase SQL editor. It should return zero rows; this is not a substitute for a full manual review.
-- [ ] Keep `reviewflow` and `invoicing` exposed to the Data API for service-role PostgREST clients, while keeping public role grants revoked.
-- [ ] Set Worker secrets in the Cloudflare dashboard. Current code requires JWT_SECRET (32+ chars), SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_ANON_KEY, CORS_ORIGIN (exact HTTPS origin), INTEGRATION_SECRET, CRON_SECRET and COOKIE_DOMAIN in production. Set RESEND_WEBHOOK_SECRET when RESEND_API_KEY is enabled.
-- [ ] Set APP_ORIGIN and API_ORIGIN consistently with the Pages and Worker origins in preparation for the pending cookie/CSRF implementation.
-- [ ] Verify the Resend sending domain (SPF, DKIM and DMARC) before enabling outbound email.
-- [ ] Configure Cloudflare custom domains and monitoring only after the remaining Worker/session and scheduled-job implementation is complete.
+- [ ] Confirm backup/restore procedure and export current grants/policies.
+- [ ] Review migrations 0007–0015 in numeric order.
+- [ ] Apply to a disposable staging project only.
+- [ ] Confirm all CRM, ReviewFlow, Invoicing and scheduled edge-function calls use service_role as intended.
+- [ ] Run `supabase/tests/security_checks.sql`; resolve every returned row.
+- [ ] Run Supabase security/performance advisors and review all RLS policies, function grants and SECURITY DEFINER search paths.
+- [ ] Verify token, rate-limit, unsubscribe, reminder-claim and review-claim tables are inaccessible to anon/authenticated.
+- [ ] Test atomic/idempotent payments and document lifecycle transitions with concurrent requests.
 
-## Explicitly not ready
+## Cloudflare and domains
 
-Email verification/reset flows, HttpOnly cookie sessions and CSRF, persistent rate limits, tenant-isolation regression coverage, scheduled review sending, Svix webhook verification, public invoice JSON share API, frontend security headers/CSP, CI/dependency remediation, and the UX work in sections E1–E12 remain unimplemented. Do not launch based on this checklist.
+- [ ] Configure app and API custom domains under the same registrable domain.
+- [ ] Set exact `CORS_ORIGIN=APP_ORIGIN`, `APP_ORIGIN`, `API_ORIGIN`, and matching `COOKIE_DOMAIN`.
+- [ ] Set production secrets: JWT_SECRET, SUPABASE_SERVICE_KEY, INTEGRATION_SECRET, CRON_SECRET, RESEND_API_KEY, RESEND_WEBHOOK_SECRET and SV_API_KEY (if Invoicing is enabled).
+- [ ] Set `ALLOW_BEARER_AUTH=false`.
+- [ ] Verify cookie flags and CSRF checks from the deployed Pages origin.
+- [ ] Verify Worker Cron triggers execute every 5 minutes, 15 minutes and daily at 03:00 UTC; inspect failures and retries.
+- [ ] Verify CSP/security headers from the deployed Pages site.
 
-## Rollback
+## Email and widget
 
-Reverting Git does not reverse database grants or default privileges. Prepare and peer-review SQL that restores the exact pre-migration grants before applying 0007. Treat index removal separately; do not drop unrelated indexes.
+- [ ] Verify sending domain SPF, DKIM and DMARC.
+- [ ] Set matching secrets on Supabase Edge Functions (they are not copied from Cloudflare).
+- [ ] Test email verification, resend, forgot/reset password and change-password flows.
+- [ ] Test Svix valid, invalid, stale and replayed webhook deliveries.
+- [ ] Test recipient unsubscribe and verify opted-out addresses cannot receive review-request email.
+- [ ] Configure exact HTTPS widget origins in each user's Settings before embedding.
+- [ ] Test widget consent, honeypot, rate limits, duplicate submissions and keyboard navigation.
+
+## Application and CI
+
+- [ ] Review PR #7 and confirm the CI checks are green.
+- [ ] Run the complete tenant-isolation matrix across CRM, ReviewFlow, Invoicing and public endpoints.
+- [ ] Run frontend keyboard/screen-reader/contrast checks.
+- [ ] Review npm audit findings and Dependabot PRs; upgrade vulnerable dependencies with a synchronized lockfile.
+- [ ] Verify public quote/invoice links, expiry, revocation, quote acceptance/decline and print-to-PDF.
+- [ ] Complete the remaining UX brief items and update the report with evidence.
+
+## Explicit deployment gate
+
+Do not deploy until all staging checks pass, migrations have a reviewed rollback plan, CI is green, and an owner has approved the final PR. No migration or secret change is performed by this checklist.
