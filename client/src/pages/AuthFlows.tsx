@@ -1,9 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert, Button, Field, Input } from '../components/ui.js';
 import * as api from '../lib/api.js';
 
-function Shell({title,children}:{title:string;children:React.ReactNode}){
+function Shell({title,children}:{title:string;children:ReactNode}){
  return <main className="flex min-h-screen items-center justify-center bg-page px-4 py-8"><section className="w-full max-w-md rounded-xl border border-line bg-white p-6 shadow-sm"><h1 className="mb-4 text-xl font-bold text-ink">{title}</h1>{children}</section></main>;
 }
 export function CheckYourInboxPage(){return <Shell title="Check your inbox"><p className="text-sm text-muted">If your registration can be completed, TradePro has sent a verification link. Open it to verify your email and finish signing in.</p><p className="mt-5 text-sm"><Link to="/login" className="font-semibold text-brand-600">Back to sign in</Link></p></Shell>;}
