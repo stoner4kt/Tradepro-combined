@@ -47,8 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(async (input: { email: string; password: string; fullName?: string; businessName?: string }) => {
     const res = await api.register(input);
-    api.setToken(res.token);
-    setUser(res.user);
+    if (res.user) setUser(res.user);
+    return Boolean(res.user);
   }, []);
 
   const logout = useCallback(() => {
