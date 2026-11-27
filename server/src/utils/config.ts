@@ -36,6 +36,7 @@ export const config = {
   appOrigin: process.env.APP_ORIGIN || '',
   apiOrigin: process.env.API_ORIGIN || '',
   cookieDomain: process.env.COOKIE_DOMAIN || '',
+  cronSecret: process.env.CRON_SECRET || '',
 
   jwtSecret: process.env.JWT_SECRET || '',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
