@@ -33,6 +33,7 @@ WITH table_grants AS (
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
   WHERE c.relkind IN ('r','p')
     AND n.nspname IN ('public','reviewflow','invoicing')
+    AND (c.relname='profiles' OR EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attname='user_id' AND a.attnum>0 AND NOT a.attisdropped))
     AND NOT c.relrowsecurity
 ), policy_without_uid AS (
   SELECT 'policy missing tenant predicate' AS issue,
