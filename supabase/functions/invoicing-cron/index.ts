@@ -54,7 +54,7 @@ async function sendReminderEmail(doc: DocRow, settings: SettingsRow): Promise<{ 
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": `tradepro-invoice-reminder-${doc.id}-${doc.due_date || "undated"}` },
       body: JSON.stringify({
         from,
         to: recipient,
@@ -143,11 +143,31 @@ serve(async (req: Request): Promise<Response> => {
       for (const doc of userDocs) {
         if (dryRun) { written.push({document_id:doc.id,number:doc.number,status:"dry_run"}); continue; }
         let result: {status:string;message_id:string|null;error?:string};
-        try { result = await sendReminderEmail(doc, settings ?? { business_name: "", email: "", reply_to_email: "", business_email: "" }); }
-        catch (err) { result = {status:"failed",message_id:null,error:(err as Error).message}; }
+        try {
+          const hasResend = Boolean(Deno.env.get("RESEND_API_KEY"));
+          if (hasResend) {
+            const publicDb = admin.schema("public");
+            const {data:ownerSettings,error:settingsError} = await publicDb.from("settings").select("daily_email_cap").eq("user_id",userId).maybeSingle();
+            if (settingsError) throw new Error("Unable to verify daily email allowance");
+            const cap = Math.max(1,Math.min(500,Number(ownerSettings?.daily_email_cap||50)));
+            const digest = await crypto.subtle.digest("SHA-256",new TextEncoder().encode("invoice-email:"+userId));
+            const key = Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+            const {data:limitData,error:limitError} = await publicDb.rpc("rate_limit_hit",{p_key:key,p_window_seconds:86400,p_max:cap});
+            const limit = Array.isArray(limitData)?limitData[0]:limitData;
+            if (limitError) throw new Error("Unable to verify daily email allowance");
+            if (!limit?.allowed) {
+              await admin.from("reminder_claims").update({claimed_at:new Date(Date.now()+86400000).toISOString()}).eq("document_id",doc.id).eq("due_date",doc.due_date);
+              result = {status:"deferred",message_id:null,error:"Daily email limit reached; deferred for 24 hours"};
+            } else {
+              result = await sendReminderEmail(doc, settings ?? { business_name: "", email: "", reply_to_email: "", business_email: "" });
+            }
+          } else {
+            result = await sendReminderEmail(doc, settings ?? { business_name: "", email: "", reply_to_email: "", business_email: "" });
+          }
+        } catch (err) { result = {status:"failed",message_id:null,error:(err as Error).message}; }
         if (result.status === "sent") {
           await admin.from("reminder_claims").update({sent_at:new Date().toISOString()}).eq("document_id",doc.id).eq("due_date",doc.due_date);
-        } else {
+        } else if (result.status !== "deferred") {
           await admin.from("reminder_claims").delete().eq("document_id",doc.id).eq("due_date",doc.due_date);
         }
         const ev = {
@@ -156,9 +176,9 @@ serve(async (req: Request): Promise<Response> => {
           kind: "reminder",
           to_email: String((doc.customer_snapshot as Record<string, unknown>).email || ""),
           subject: `Reminder: invoice ${doc.number}`,
-          status: result.status,
+          status: result.status === "deferred" ? "queued" : result.status,
           message_id: result.message_id,
-          meta: result.error ? { error: result.error } : {},
+          meta: result.error ? { error: result.error, deferred: result.status === "deferred" } : {},
         };
         const { error: evErr } = await admin.from("email_events").insert(ev);
         if (evErr) {
