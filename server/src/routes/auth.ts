@@ -19,10 +19,10 @@ export function authRoutes(authService: AuthService): Router {
         return sendError(res, 400, 'Invalid input', parsed.error.flatten().fieldErrors);
       }
       const result = await authService.register(parsed.data);
-      if (!isSuccess(result)) {
-        return sendError(res, result.status, result.error);
-      }
-      res.status(201).json({ token: result.token, user: result.user, provider: result.provider });
+      if ('pending' in result) return res.status(202).json({ message: result.message });
+      if (!isSuccess(result)) return sendError(res, result.status, 'Unable to register with these details');
+      if (result.token) res.cookie('tradepro_session', result.token, { httpOnly: true, secure: config.isProduction, sameSite: 'lax', domain: config.cookieDomain || undefined, path: '/', maxAge: 8 * 60 * 60 * 1000 });
+      res.status(201).json({ user: result.user, provider: result.provider });
     }),
   );
 
@@ -35,9 +35,7 @@ export function authRoutes(authService: AuthService): Router {
         return sendError(res, 400, 'Invalid input', parsed.error.flatten().fieldErrors);
       }
       const result = await authService.login(parsed.data);
-      if (!isSuccess(result)) {
-        return sendError(res, result.status, result.error);
-      }
+      if (!isSuccess(result)) return sendError(res, 'status' in result ? result.status : 401, 'Invalid email or password');
       res.cookie('tradepro_session', result.token, { httpOnly: true, secure: config.isProduction, sameSite: 'lax', domain: config.cookieDomain || undefined, path: '/', maxAge: 8 * 60 * 60 * 1000 });
       res.setHeader('Cache-Control', 'no-store');
       res.json({ user: result.user, provider: result.provider });
@@ -45,6 +43,40 @@ export function authRoutes(authService: AuthService): Router {
   );
 
   router.post('/logout', (req, res) => { res.clearCookie('tradepro_session', { httpOnly: true, secure: config.isProduction, sameSite: 'lax', domain: config.cookieDomain || undefined, path: '/' }); res.status(204).end(); });
+
+
+  router.post('/verify-email', asyncHandler(async (req,res)=>{
+    const token=typeof req.body?.token==='string'?req.body.token:'';
+    if(!token || token.length>256)return sendError(res,400,'Invalid or expired verification link');
+    const result=await authService.verifyEmail(token);
+    if(!result)return sendError(res,400,'Invalid or expired verification link');
+    res.cookie('tradepro_session',result.token,{httpOnly:true,secure:config.isProduction,sameSite:'lax',domain:config.cookieDomain||undefined,path:'/',maxAge:8*60*60*1000});
+    res.setHeader('Cache-Control','no-store');
+    return res.json({user:result.user});
+  }));
+
+  router.post('/forgot-password',rateLimit({scope:'auth-forgot',windowSeconds:3600,max:3,failClosed:config.isProduction}),asyncHandler(async(req,res)=>{
+    const email=typeof req.body?.email==='string'?req.body.email:'';
+    if(email.length<=254){try{await authService.requestPasswordReset(email.toLowerCase().trim());}catch{/* identical public response */}}
+    return res.status(200).json({message:'If an account exists for that email, password reset instructions will be sent.'});
+  }));
+
+  router.post('/reset-password',rateLimit({scope:'auth-reset',windowSeconds:3600,max:5,failClosed:config.isProduction}),asyncHandler(async(req,res)=>{
+    const token=typeof req.body?.token==='string'?req.body.token:'';
+    const password=typeof req.body?.password==='string'?req.body.password:'';
+    if(token.length<32||token.length>256||password.length<10||password.length>128)return sendError(res,400,'Invalid reset request');
+    const ok=await authService.completePasswordReset(token,password);
+    if(!ok)return sendError(res,400,'Invalid or expired reset link');
+    res.clearCookie('tradepro_session',{httpOnly:true,secure:config.isProduction,sameSite:'lax',domain:config.cookieDomain||undefined,path:'/'});
+    return res.json({message:'Password updated. Please sign in again.'});
+  }));
+
+  router.post('/logout-all',requireAuth,asyncHandler(async(req,res)=>{
+    const user=(req as AuthedRequest).user!;
+    await authService.bumpTokenVersion(user.id);
+    res.clearCookie('tradepro_session',{httpOnly:true,secure:config.isProduction,sameSite:'lax',domain:config.cookieDomain||undefined,path:'/'});
+    return res.status(204).end();
+  }));
 
   router.get(
     '/me',
