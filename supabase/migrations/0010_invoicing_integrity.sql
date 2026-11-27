@@ -45,13 +45,24 @@ CREATE OR REPLACE FUNCTION invoicing.prevent_sent_line_mutation()
 RETURNS trigger LANGUAGE plpgsql
 SET search_path = pg_catalog, public, invoicing
 AS $$
-DECLARE doc_status text; doc_id uuid;
+DECLARE old_status text; new_status text;
 BEGIN
-  doc_id := CASE WHEN TG_OP='DELETE' THEN OLD.document_id ELSE NEW.document_id END;
-  SELECT status INTO doc_status FROM invoicing.documents WHERE id=doc_id
-    AND user_id=CASE WHEN TG_OP='DELETE' THEN OLD.user_id ELSE NEW.user_id END FOR UPDATE;
-  IF doc_status IS DISTINCT FROM 'draft' THEN RAISE EXCEPTION 'lines on non-draft documents are immutable'; END IF;
-  RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
+  IF TG_OP IN ('UPDATE','DELETE') THEN
+    SELECT status INTO old_status FROM invoicing.documents
+      WHERE id=OLD.document_id AND user_id=OLD.user_id FOR UPDATE;
+    IF old_status IS DISTINCT FROM 'draft' THEN
+      RAISE EXCEPTION 'lines on non-draft documents are immutable';
+    END IF;
+  END IF;
+  IF TG_OP IN ('INSERT','UPDATE') THEN
+    SELECT status INTO new_status FROM invoicing.documents
+      WHERE id=NEW.document_id AND user_id=NEW.user_id FOR UPDATE;
+    IF new_status IS DISTINCT FROM 'draft' THEN
+      RAISE EXCEPTION 'lines on non-draft documents are immutable';
+    END IF;
+  END IF;
+  IF TG_OP='DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
 END $$;
 DROP TRIGGER IF EXISTS invoicing_document_lines_guard ON invoicing.document_lines;
 CREATE TRIGGER invoicing_document_lines_guard BEFORE INSERT OR UPDATE OR DELETE ON invoicing.document_lines
@@ -108,7 +119,7 @@ SET search_path = pg_catalog, public, invoicing
 AS $$
 DECLARE p invoicing.payments%ROWTYPE; d invoicing.documents%ROWTYPE; paid bigint; next_status text;
 BEGIN
-  SELECT * INTO p FROM invoicing.payments WHERE id=p_payment_id AND user_id=p_user_id;
+  SELECT * INTO p FROM invoicing.payments WHERE id=p_payment_id AND user_id=p_user_id FOR UPDATE;
   IF NOT FOUND THEN RETURN false; END IF;
   SELECT * INTO d FROM invoicing.documents WHERE id=p.document_id AND user_id=p_user_id FOR UPDATE;
   IF NOT FOUND OR d.status='paid' OR d.status='void' THEN RAISE EXCEPTION 'payment cannot be deleted'; END IF;
