@@ -26,7 +26,8 @@ export interface AuthFailure {
   provider: 'supabase' | 'local';
 }
 
-export type AuthResult = AuthSuccess | AuthFailure;
+export interface AuthPending { pending: true; message: string; provider: 'supabase' | 'local' }
+export type AuthResult = AuthSuccess | AuthFailure | AuthPending;
 
 export function isSuccess(r: AuthResult): r is AuthSuccess {
   return 'token' in r;
@@ -74,23 +75,16 @@ export class AuthService {
   }): Promise<AuthResult> {
     if (this.admin) {
       try {
-        const { data, error } = await this.admin.auth.signUp({
+        const { data, error } = await this.admin.auth.admin.createUser({
           email: input.email.toLowerCase().trim(),
           password: input.password,
-          options: {
-            data: {
-              full_name: input.fullName ?? '',
-              business_name: input.businessName ?? '',
-              business_type: input.businessType ?? '',
-            },
-            emailRedirectTo: process.env.SUPABASE_EMAIL_REDIRECT || `${this.baseUrl()}/login`,
-          },
+          email_confirm: false,
+          user_metadata: { full_name: input.fullName ?? '', business_name: input.businessName ?? '', business_type: input.businessType ?? '', phone: input.phone ?? '' },
         });
-        if (error) return { error: error.message, status: 400, provider: 'supabase' };
-        if (!data.user) return { error: 'Registration failed', status: 500, provider: 'supabase' };
-
-        const user = await this.sbProfile(data.user.id, data.user.email ?? input.email);
-        return { token: signUserToken(user), user: toAuthUser(user), provider: 'supabase' };
+        if (error || !data.user) return { error: 'Unable to create account', status: 400, provider: 'supabase' };
+        const rawToken = await this.createAuthToken(data.user.id, 'email_verify', 24 * 60 * 60);
+        await this.sendAuthLink(data.user.email || input.email, 'verify-email', rawToken, 'Verify your TradePro email');
+        return { pending: true, message: 'If registration can be completed, a verification email will be sent shortly.', provider: 'supabase' };
       } catch (err) {
         logger.error('Supabase signUp failed', { err: (err as Error).message });
         return { error: 'Supabase sign up failed', status: 500, provider: 'supabase' };
@@ -106,6 +100,74 @@ export class AuthService {
     }
   }
 
+  private async createAuthToken(userId: string, purpose: 'email_verify' | 'password_reset', ttlSeconds: number): Promise<string> {
+    if (!this.admin) throw new Error('Supabase auth tokens require the production data store');
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    const raw = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    const tokenHash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+    const { error } = await this.admin.from('auth_tokens').insert({ user_id: userId, purpose, token_hash: tokenHash, expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString() });
+    if (error) throw error;
+    return raw;
+  }
+
+  private async sendAuthLink(email: string, path: string, token: string, subject: string): Promise<void> {
+    if (!config.resend.apiKey || !config.appOrigin || !config.resend.fromEmail) throw new Error('Email verification delivery is not configured');
+    const url = `${config.appOrigin.replace(/\\/+$/, '')}/${path}?token=${encodeURIComponent(token)}`;
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.resend.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: config.resend.fromEmail, to: [email], subject, html: `<p>Use this secure, single-use link:</p><p><a href="${url}">Continue to TradePro</a></p><p>This link expires soon. If you did not request it, ignore this email.</p>` }),
+    });
+    if (!response.ok) throw new Error('Unable to deliver authentication email');
+  }
+
+  async verifyEmail(rawToken: string): Promise<AuthSuccess | null> {
+    if (!this.admin) return null;
+    const hash = await this.hashToken(rawToken);
+    const { data: row } = await this.admin.from('auth_tokens').select('id,user_id,expires_at,used_at').eq('purpose','email_verify').eq('token_hash',hash).maybeSingle();
+    if (!row || row.used_at || Date.parse(row.expires_at) <= Date.now()) return null;
+    const { data: consumed } = await this.admin.from('auth_tokens').update({ used_at: new Date().toISOString() }).eq('id',row.id).is('used_at',null).select('id').maybeSingle();
+    if (!consumed) return null;
+    const { error } = await this.admin.auth.admin.updateUserById(row.user_id,{email_confirm:true});
+    if (error) return null;
+    await this.admin.from('profiles').update({email_verified_at:new Date().toISOString()}).eq('id',row.user_id);
+    const profile=await this.sbProfile(row.user_id,'');
+    return {token:signUserToken(profile),user:toAuthUser(profile),provider:'supabase'};
+  }
+
+  private async hashToken(rawToken:string):Promise<string>{
+    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(rawToken));
+    return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+  }
+
+  async requestPasswordReset(email:string):Promise<void>{
+    if(!this.admin)return;
+    const user=await this.local.findByEmail(email);
+    if(!user)return;
+    const token=await this.createAuthToken(user.id,'password_reset',3600);
+    await this.sendAuthLink(email,'reset-password',token,'Reset your TradePro password');
+  }
+
+  async completePasswordReset(rawToken:string,newPassword:string):Promise<boolean>{
+    if(!this.admin)return false;
+    const hash=await this.hashToken(rawToken);
+    const {data:row}=await this.admin.from('auth_tokens').select('id,user_id,expires_at,used_at').eq('purpose','password_reset').eq('token_hash',hash).maybeSingle();
+    if(!row||row.used_at||Date.parse(row.expires_at)<=Date.now())return false;
+    const {data:consumed}=await this.admin.from('auth_tokens').update({used_at:new Date().toISOString()}).eq('id',row.id).is('used_at',null).select('id').maybeSingle();
+    if(!consumed)return false;
+    const {error}=await this.admin.auth.admin.updateUserById(row.user_id,{password:newPassword});
+    if(error)return false;
+    await this.admin.from('profiles').update({token_version: (await this.getTokenVersion(row.user_id))+1}).eq('id',row.user_id);
+    return true;
+  }
+
+  async getTokenVersion(userId:string):Promise<number>{
+    if(!this.admin)return 0;
+    const {data}=await this.admin.from('profiles').select('token_version').eq('id',userId).maybeSingle();
+    return Number(data?.token_version||0);
+  }
+
   async login(input: { email: string; password: string }): Promise<AuthResult> {
     if (this.admin) {
       try {
@@ -113,7 +175,7 @@ export class AuthService {
           email: input.email.toLowerCase().trim(),
           password: input.password,
         });
-        if (error || !data.user) {
+        if (error || !data.user || !data.user.email_confirmed_at) {
           return { error: error?.message || 'Invalid credentials', status: 401, provider: 'supabase' };
         }
         const user = await this.sbProfile(data.user.id, data.user.email ?? input.email);
