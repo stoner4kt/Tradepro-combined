@@ -4,7 +4,7 @@ import { clientIp } from "../_shared/security.ts";
 
 const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"content-type, authorization, x-widget-key","Access-Control-Allow-Methods":"POST, OPTIONS"};
 function json(data:unknown,status=200):Response{return new Response(JSON.stringify(data),{status,headers:{...CORS,"Content-Type":"application/json","Cache-Control":"no-store"}});}
-function adminClient():SupabaseClient{
+function adminClient(): SupabaseClient<any, any>{
  const url=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
  if(!url||!key)throw new Error("Service unavailable");
  return createClient(url,key,{db:{schema:"reviewflow"}});
