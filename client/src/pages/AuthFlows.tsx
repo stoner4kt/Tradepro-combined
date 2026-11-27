@@ -6,7 +6,11 @@ import * as api from '../lib/api.js';
 function Shell({title,children}:{title:string;children:ReactNode}){
  return <main className="flex min-h-screen items-center justify-center bg-page px-4 py-8"><section className="w-full max-w-md rounded-xl border border-line bg-white p-6 shadow-sm"><h1 className="mb-4 text-xl font-bold text-ink">{title}</h1>{children}</section></main>;
 }
-export function CheckYourInboxPage(){return <Shell title="Check your inbox"><p className="text-sm text-muted">If your registration can be completed, TradePro has sent a verification link. Open it to verify your email and finish signing in.</p><p className="mt-5 text-sm"><Link to="/login" className="font-semibold text-brand-600">Back to sign in</Link></p></Shell>;}
+export function CheckYourInboxPage(){
+ const [params]=useSearchParams();const [email,setEmail]=useState(params.get('email')||'');const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);
+ const resend=async()=>{setBusy(true);try{const r=await api.resendVerification(email);setMessage(r.message);}catch{setMessage('If the account needs verification, a new link will be sent.');}finally{setBusy(false);}};
+ return <Shell title="Check your inbox"><p className="text-sm text-muted">If your registration can be completed, TradePro has sent a verification link. Open it to verify your email and finish signing in.</p><div className="mt-5 space-y-3"><Field label="Email"><Input type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)}/></Field><Button type="button" disabled={busy||!email} onClick={()=>void resend()}>{busy?'Sending…':'Resend verification email'}</Button>{message?<p role="status" aria-live="polite" className="text-sm text-muted">{message}</p>:null}</div><p className="mt-5 text-sm"><Link to="/login" className="font-semibold text-brand-600">Back to sign in</Link></p></Shell>;
+}
 export function ForgotPasswordPage(){
  const [email,setEmail]=useState('');const [message,setMessage]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState(false);
  const submit=async(e:FormEvent)=>{e.preventDefault();setBusy(true);setError('');try{const r=await api.forgotPassword(email);setMessage(r.message);}catch(err){setError(err instanceof Error?err.message:'Unable to submit request');}finally{setBusy(false);}};
