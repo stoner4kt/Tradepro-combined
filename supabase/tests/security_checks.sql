@@ -21,6 +21,12 @@ WITH table_grants AS (
       SELECT 1 FROM unnest(coalesce(p.proconfig, ARRAY[]::text[])) cfg
       WHERE cfg LIKE 'search_path=%'
     )
+), rls_disabled AS (
+  SELECT 'RLS disabled' AS issue, n.nspname||'.'||c.relname AS object_name,
+         'row-level security is not enabled' AS detail
+  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname IN ('public','reviewflow','invoicing')
+    AND c.relkind IN ('r','p') AND NOT c.relrowsecurity
 ), bare_uid AS (
   SELECT 'bare auth.uid policy' AS issue, schemaname||'.'||tablename||'.'||policyname AS object_name,
          coalesce(qual,'')||' '||coalesce(with_check,'') AS detail
@@ -32,5 +38,6 @@ WITH table_grants AS (
 SELECT * FROM table_grants
 UNION ALL SELECT * FROM routine_grants
 UNION ALL SELECT * FROM unpinned
+UNION ALL SELECT * FROM rls_disabled
 UNION ALL SELECT * FROM bare_uid
 ORDER BY issue, object_name, detail;
