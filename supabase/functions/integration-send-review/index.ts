@@ -172,8 +172,10 @@ export async function sendReviewForLead(
   if (!settings) return { ok: false, status: 500, body: { error: "Settings not configured" } };
   const s = settings as unknown as SettingsRow;
   const leadRow = lead as unknown as LeadRow;
+  if(leadRow.status !== 'complete')return {ok:false,status:409,body:{error:'Lead is not eligible for a review request'}};
 
-  const {data:optOut}=await admin.schema("public").from("email_opt_outs").select("id").eq("user_id",userId).eq("email",leadRow.email.toLowerCase()).maybeSingle();
+  const {data:optOut,error:optOutError}=await admin.schema("public").from("email_opt_outs").select("id").eq("user_id",userId).eq("email",leadRow.email.toLowerCase()).maybeSingle();
+  if(optOutError)return {ok:false,status:503,body:{error:'Unable to verify recipient preferences'}};
   if(optOut)return {ok:false,status:409,body:{error:"Recipient has opted out"}};
 
   const subject = resolveTags(String(s.email_subject_template || ""), leadRow, s);
