@@ -21,7 +21,6 @@ JWT_SECRET=change-me-to-a-long-random-string
 ALLOW_BEARER_AUTH=true
 CRON_SECRET=local-only-replace-with-32-characters
 INTEGRATION_SECRET=local-only-replace-with-32-characters
-TURNSTILE_SECRET=
 RESEND_WEBHOOK_SECRET=
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=TradePro CRM <hello@example.test>
