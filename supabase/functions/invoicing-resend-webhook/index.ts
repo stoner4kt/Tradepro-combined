@@ -36,11 +36,11 @@ const STATUS_MAP:Record<string,string>={
 serve(async(req:Request):Promise<Response>=>{
  if(req.method==="OPTIONS") return new Response(null,{status:204});
  if(req.method!=="POST") return json({error:"Method not allowed"},405);
- const raw=await req.text(); if(!raw) return json({error:"Invalid request"},400);
+ const raw=await req.text(); if(!raw || raw.length>256_000) return json({error:"Invalid request"},400);
  const verified=await verifySvix(raw,req); if(!verified) return json({error:"Invalid signature"},401);
  let event:{type?:string;data?:{email_id?:string;id?:string}};
  try{event=JSON.parse(raw);}catch{return json({error:"Invalid request"},400);}
- const status=STATUS_MAP[event.type||""]; const messageId=event.data?.email_id||event.data?.id;
+ const status=STATUS_MAP[event.type||""]; const messageId=event.data?.email_id;
  if(!status || !messageId) return json({ok:true,ignored:true});
  try{
   const admin=adminClient();
