@@ -501,7 +501,7 @@ export class SupabaseStore implements Store {
 
   async convertLeadToClient(userId: string, leadId: string): Promise<{ clientId: string; projectId: string }> {
     this.assertSet();
-    const { data, error } = await this.sb.rpc('convert_lead_to_client', { p_lead_id: leadId });
+    const { data, error } = await this.sb.rpc('convert_lead_to_client', { p_user_id: userId, p_lead_id: leadId });
     if (error) throw new Error(`convertLeadToClient failed: ${error.message}`);
     const row = Array.isArray(data) ? data[0] : data;
     return { clientId: row?.client_id as string, projectId: row?.project_id as string };
