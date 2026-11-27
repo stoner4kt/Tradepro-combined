@@ -55,7 +55,8 @@
 //   RESEND_API_KEY         transactional + review email
 //   RESEND_WEBHOOK_SECRET  Resend Svix signing secret (whsec_...)
 //   RESEND_FROM_EMAIL      verified sending-domain address (required)
-//   SV_API_KEY             32+ random chars when invoicing is enabled
+//   SV_API_KEY             32+ random chars when invoicing is enabled (Worker-side)
+//   X_API_KEY              matching 32+ random chars in Supabase Edge Function secrets
 //   CAPTURE_SECRET         optional; only used when REQUIRE_CAPTURE_SECRET=true
 //
 // Set ALLOW_BEARER_AUTH=false in production. Never put secrets in this file or
