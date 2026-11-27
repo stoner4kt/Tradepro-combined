@@ -3,6 +3,8 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -21,7 +23,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        closeRef.current();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -52,7 +54,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
       document.body.style.overflow = oldOverflow;
       previous?.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
