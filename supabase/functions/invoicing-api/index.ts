@@ -610,7 +610,13 @@ serve(async (req: Request): Promise<Response> => {
         try { body = await req.json(); } catch { /* optional body */ }
         const settings = await currentSettings(admin, userId) as { business_name: string; reply_to_email: string; email: string };
         const recipient = numbersFromSnapshot(doc.customer_snapshot as Record<string, unknown>).email;
-        if (!recipient) return json({ error: "No customer email — set the customer before sending" }, 400);
+        if (!recipient || recipient.length>254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)) return json({ error: "A valid customer email is required before sending" }, 400);
+        const {data:ownerSettings}=await admin.schema("public").from("settings").select("daily_email_cap").eq("user_id",userId).maybeSingle();
+        const dailyCap=Math.max(1,Math.min(500,Number(ownerSettings?.daily_email_cap||50)));
+        const {data:limitRows,error:limitError}=await admin.schema("public").rpc("rate_limit_hit",{p_key:"invoicing-email:"+userId,p_window_seconds:86400,p_max:dailyCap});
+        const limit=Array.isArray(limitRows)?limitRows[0]:limitRows;
+        if(limitError)return json({error:"Email limit service unavailable"},503);
+        if(!limit?.allowed)return json({error:"Daily email limit reached"},429);
         const totals = {
           total_label: fmtMoney(doc.total_minor, { currency: doc.currency }),
           due_label: doc.kind === "quote"
