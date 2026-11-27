@@ -573,6 +573,7 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       if (method === "PATCH" && rel.length === 2) {
+        if (doc.status !== "draft") return json({ error: "Only draft documents can be edited; duplicate the document to make changes" }, 409);
         let body: Record<string, unknown>;
         try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
         const patch: Record<string, unknown> = {};
