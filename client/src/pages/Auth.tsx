@@ -93,7 +93,7 @@ export function RegisterPage() {
     setBusy(true);
     try {
       const signedIn = await register(form);
-      navigate(signedIn ? '/' : '/check-your-inbox');
+      navigate(signedIn ? '/' : '/check-your-inbox?email=' + encodeURIComponent(form.email));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
