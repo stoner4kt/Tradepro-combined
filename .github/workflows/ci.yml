@@ -24,6 +24,8 @@ jobs:
           deno-version: v2.x
       - name: Check Supabase Edge Functions
         run: find supabase/functions -mindepth 2 -maxdepth 2 -name index.ts -not -path '*/_shared/*' -print0 | xargs -0 -n1 deno check
+      - name: Test Svix webhook signatures
+        run: deno test supabase/functions/invoicing-resend-webhook/svix.test.ts
       - run: npm audit --omit=dev --audit-level=high
       - uses: gitleaks/gitleaks-action@v2
         env:
