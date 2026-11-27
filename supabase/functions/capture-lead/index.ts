@@ -47,7 +47,7 @@ serve(async(req:Request):Promise<Response>=>{
  const dayRow=Array.isArray(dayLimit.data)?dayLimit.data[0]:dayLimit.data;
  if(shortLimit.error||dayLimit.error)return json({error:"Rate limit service unavailable"},503);
  if(!shortRow?.allowed||!dayRow?.allowed)return json({error:"Too many submissions. Please try again later."},429);
- const {data:existing}=await admin.from("leads").select("id").eq("user_id",owner.user_id).eq("email",email).gte("created_at",new Date(Date.now()-10*60*1000).toISOString()).maybeSingle();
+ const {data:existing}=await admin.from("leads").select("id").eq("user_id",owner.user_id).eq("email",email).gte("created_at",new Date(Date.now()-10*60*1000).toISOString()).limit(1).maybeSingle();
  if(existing)return json({success:true,lead_id:existing.id});
  const {data:lead,error}=await admin.from("leads").insert({
   user_id:owner.user_id,first_name:first,last_name:last,email,phone:phone||null,service:service||null,message:message||null,
