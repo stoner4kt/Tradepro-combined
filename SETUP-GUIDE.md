@@ -392,17 +392,21 @@ With everything live:
 
 ## Auto-send scheduling
 
-The merged dashboard includes the standalone's auto-send behaviour:
+- Marking a review lead **Complete** stamps `completed_at` and
+  `review_send_after` when auto-send is enabled.
+- The Cloudflare Worker runs every 5 minutes and calls
+  `integration-send-review`. Postgres `claim_due_review_emails` uses
+  `FOR UPDATE SKIP LOCKED` and expiring claims so concurrent invocations do
+  not send the same due lead. Resend idempotency keys make retries safe.
+- Review sends enforce each user's daily email cap and recipient opt-outs.
+  Recipients can unsubscribe through a one-time token link.
+- The Worker runs invoice reminders and an overdue-status sweep every 15
+  minutes. Invoice reminder claims are also persisted and atomic.
+- A daily 03:00 UTC Worker job removes expired auth, rate-limit and
+  unsubscribe-token rows.
 
-- Marking a review lead **Complete** stamps `completed_at` + `review_send_after`
-  and (with auto-send enabled) schedules the email.
-- While the Reviews page is open, a **5-minute polling loop** sends anything
-  that became due (free-tier friendly — no cron required).
-
-Cloudflare Workers Cron Triggers are available on the free plan; they do not
-require an in-memory process to stay alive. A production scheduler should
-claim due rows atomically in Postgres before sending so multiple invocations
-cannot double-send. That server-side scheduled implementation is not yet
-included in this branch. Until it is implemented and tested, the current
-browser polling loop remains the active behaviour; do not assume background
-sending occurs while the Reviews tab is closed.
+Cloudflare Cron triggers are configured in `server/wrangler.jsonc`, but this
+branch does not deploy them. Set `INTEGRATION_SECRET` on the Supabase edge
+functions and matching `REVIEWFLOW_SECRET` on the Worker; set matching
+`CRON_SECRET` on the Worker and `invoicing-cron`. Confirm the migrations and
+Cron execution in staging before production.
