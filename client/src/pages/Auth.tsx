@@ -18,6 +18,11 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle: str
           <h2 className="mb-4 text-lg font-semibold text-ink">{title}</h2>
           {children}
         </div>
+        <p className="mt-4 text-center text-xs text-muted">
+          <Link to="/privacy" className="underline">Privacy notice</Link>
+          <span className="px-2">·</span>
+          <Link to="/terms" className="underline">Terms of service</Link>
+        </p>
       </div>
     </div>
   );
