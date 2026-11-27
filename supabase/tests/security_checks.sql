@@ -40,7 +40,7 @@ WITH table_grants AS (
          coalesce(qual,'')||' '||coalesce(with_check,'') AS detail
   FROM pg_policies
   WHERE schemaname IN ('public','reviewflow','invoicing')
-    AND NOT ('service_role'=ANY(roles))
+    AND ('anon'=ANY(roles) OR 'authenticated'=ANY(roles) OR 'public'=ANY(roles))
     AND (coalesce(qual,'')||' '||coalesce(with_check,'')) !~* 'auth[.]uid'
 ), bare_uid AS (
   SELECT 'bare auth.uid policy' AS issue, schemaname||'.'||tablename||'.'||policyname AS object_name,
