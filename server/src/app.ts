@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { config, productionConfigErrors } from './utils/config.js';
 import { logger } from './utils/logger.js';
@@ -31,6 +32,13 @@ export function createApp(): express.Express {
     return app;
   }
   app.use(cors({ origin: config.corsOrigin || false, credentials: true, optionsSuccessStatus: 204, exposedHeaders: ['Retry-After'] }));
+  app.use((req, res, next) => {
+    const requestId = randomUUID();
+    res.locals.requestId = requestId;
+    res.setHeader('X-Request-ID', requestId);
+    if (req.path.startsWith('/api')) res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
   app.use((req, res, next) => {
     if (config.nodeEnv === 'test' || ['GET','HEAD','OPTIONS'].includes(req.method)) return next();
     const origin = req.get('origin') || (req.get('referer') ? new URL(req.get('referer')!).origin : '');
@@ -116,8 +124,9 @@ export function createApp(): express.Express {
 
   // Error handler.
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    logger.error('Unhandled error', { err: err.message, stack: err.stack });
-    res.status(500).json({ error: { message: 'Internal server error' } });
+    const requestId = String(res.locals.requestId || 'unknown');
+    logger.error('Unhandled error', { requestId, err: err.message, stack: err.stack });
+    res.status(500).json({ error: { message: 'Internal server error', requestId } });
   });
 
   return app;
