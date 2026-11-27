@@ -232,3 +232,9 @@ No real secrets are committed — all values are placeholders in
 
 Private/internal product code. (This repository merges two existing private
 product codebases; no public license is granted.)
+
+## Go-live security hardening
+
+The review branch `hardening/go-live` adds HttpOnly cookie sessions with origin/header CSRF checks, email verification and password recovery, Postgres-backed rate limits, scoped privileged RPCs, atomic invoicing payments and reminder claims, scheduled ReviewFlow sending, Svix webhook verification, widget origin/consent controls, unsubscribe handling, public JSON share pages, and CI security checks.
+
+See [the implementation report](docs/HARDENING-PR.md) and [the staging go-live checklist](docs/GO-LIVE.md). These migrations and Worker changes must be tested in a disposable Supabase/Cloudflare staging environment before production; the branch does not deploy or mutate live services.
