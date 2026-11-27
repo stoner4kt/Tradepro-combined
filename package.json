@@ -16,7 +16,7 @@
     "test": "npm run test -w server",
     "typecheck": "npm run typecheck -w server && npm run build -w client",
     "deploy:functions": "bash scripts/deploy-functions.sh",
-    "audit:check": "npm audit"
+    "audit:check": "npm audit --audit-level=high"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
