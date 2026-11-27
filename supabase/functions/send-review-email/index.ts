@@ -10,7 +10,7 @@ export const CORS = {
 export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...CORS, "Content-Type": "application/json" },
+    headers: { ...CORS, "Content-Type": "application/json", "Idempotency-Key": "tradepro-review-" + leadRow.id },
   });
 }
 
@@ -180,6 +180,15 @@ export async function sendReviewForLead(
     brandColor: s.email_brand_color,
   });
 
+  const unsubscribeBytes=crypto.getRandomValues(new Uint8Array(32));
+  const unsubscribeToken=Array.from(unsubscribeBytes,b=>b.toString(16).padStart(2,"0")).join("");
+  const unsubscribeDigest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(unsubscribeToken));
+  const unsubscribeHash=Array.from(new Uint8Array(unsubscribeDigest),b=>b.toString(16).padStart(2,"0")).join("");
+  const {error:unsubscribeError}=await admin.schema("public").from("email_opt_out_tokens").insert({user_id:userId,email:leadRow.email.toLowerCase(),token_hash:unsubscribeHash,expires_at:new Date(Date.now()+180*86400000).toISOString()});
+  if(unsubscribeError)return {ok:false,status:500,body:{error:"Unable to prepare unsubscribe link"}};
+  const supabaseUrl=Deno.env.get("SUPABASE_URL")||"";
+  const unsubscribeUrl=supabaseUrl.replace(/\\/+$/,"")+"/functions/v1/reviewflow-unsubscribe?token="+encodeURIComponent(unsubscribeToken);
+  const emailHtml=html+'<p style="font-size:12px;color:#64748b;text-align:center;margin-top:24px"><a href="'+unsubscribeUrl+'">Unsubscribe from review-request emails</a></p>';
   const {data:optOut}=await admin.schema("public").from("email_opt_outs").select("id").eq("user_id",userId).eq("email",leadRow.email.toLowerCase()).maybeSingle();
   if(optOut)return {ok:false,status:409,body:{error:"Recipient has opted out"}};
 
@@ -188,14 +197,14 @@ export async function sendReviewForLead(
     return { ok: false, status: 400, body: { error: "review_from_email is not configured. Verify a sender domain in Resend first." } };
   }
 
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendApiKey) return { ok: false, status: 500, body: { error: "RESEND_API_KEY is not configured" } };
+
   const {data:ownerSettings}=await admin.schema("public").from("settings").select("daily_email_cap").eq("user_id",userId).maybeSingle();
   const dailyCap=Math.max(1,Math.min(500,Number(ownerSettings?.daily_email_cap||50)));
   const {data:limitRows,error:limitError}=await admin.schema("public").rpc("rate_limit_hit",{p_key:"review-email:"+userId,p_window_seconds:86400,p_max:dailyCap});
   const limit=Array.isArray(limitRows)?limitRows[0]:limitRows;
   if(limitError||!limit?.allowed)return {ok:false,status:429,body:{error:"Daily review email limit reached"}};
-
-  const resendApiKey = Deno.env.get("RESEND_API_KEY");
-  if (!resendApiKey) return { ok: false, status: 500, body: { error: "RESEND_API_KEY is not configured" } };
 
   const resendRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -205,7 +214,7 @@ export async function sendReviewForLead(
       to: [leadRow.email],
       reply_to: s.review_reply_to_email || undefined,
       subject,
-      html,
+      html: emailHtml,
     }),
   });
   const resendData = await resendRes.json().catch(() => ({}));
