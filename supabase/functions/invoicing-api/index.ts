@@ -675,24 +675,24 @@ serve(async (req: Request): Promise<Response> => {
         if (doc.kind !== "invoice") return json({ error: "Only invoices accept payments" }, 400);
         let body: Record<string, unknown>;
         try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
-        const amount = Math.max(1, Math.round(Number(body.amount_minor ?? 0) || 0));
+        const amount = Math.round(Number(body.amount_minor ?? 0) || 0);
         const methodValue = ["cash", "card", "bank", "check", "other"].includes(String(body.method)) ? String(body.method) : "other";
-        const { data: pay, error } = await admin.from("payments").insert({
-          user_id: userId, document_id: id, amount_minor: amount,
-          method: methodValue, notes: String(body.notes ?? "").slice(0, 500),
-        }).select("*").single();
-        if (error) throw error;
-        const paid = Math.min(doc.amount_paid_minor + amount, doc.total_minor);
-        const status = paid >= doc.total_minor ? "paid" : "partially_paid";
-        await admin.from("documents").update({ amount_paid_minor: paid, status, updated_at: new Date().toISOString() })
-          .eq("id", id).eq("user_id", userId);
+        const idempotencyKey = String(body.idempotency_key || req.headers.get("idempotency-key") || "");
+        if (idempotencyKey.length < 8 || idempotencyKey.length > 128) return json({ error: "A valid idempotency_key is required" }, 400);
+        const { data: result, error } = await admin.rpc("record_payment", {
+          p_user_id: userId, p_document_id: id, p_amount_minor: amount,
+          p_method: methodValue, p_reference: String(body.notes ?? "").slice(0, 500),
+          p_idempotency_key: idempotencyKey,
+        });
+        if (error) return json({ error: "Payment could not be recorded" }, 409);
+        const pay = (result as { payment?: unknown } | null)?.payment;
         await admin.from("email_events").insert({
           user_id: userId, document_id: id, kind: "payment_received",
           to_email: String((doc.customer_snapshot as Record<string, unknown>).email || "customer@sender.invalid"),
           subject: "Payment received",
           status: "queued", meta: { dev_console: "true" },
         }).then(() => undefined, () => undefined);
-        return json({ payment: pay }, 201);
+        return json({ payment: pay, duplicate: Boolean((result as {duplicate?:boolean}|null)?.duplicate) }, 201);
       }
 
       if (action === "payments" && method === "GET") {
@@ -725,21 +725,9 @@ serve(async (req: Request): Promise<Response> => {
 
     // ------- /payments/:id (DELETE) -------
     if (rel[0] === "payments" && rel[1] && method === "DELETE") {
-      const { data: pay, error } = await admin.from("payments").select("document_id,amount_minor,user_id")
-        .eq("id", rel[1]).eq("user_id", userId).maybeSingle();
-      if (error) throw error;
-      if (!pay) return json({ error: "Payment not found" }, 404);
-      await admin.from("payments").delete().eq("id", rel[1]).eq("user_id", userId);
-      // Recompute amount paid from remaining payments.
-      const { data: remaining } = await admin.from("payments").select("amount_minor")
-        .eq("document_id", pay.document_id).eq("user_id", userId);
-      const paid = (remaining ?? []).reduce((s, r) => s + r.amount_minor, 0);
-      const docRow = await getOwnedDocument(admin, userId, pay.document_id);
-      const status = docRow && paid >= docRow.total_minor ? "paid"
-        : paid > 0 ? "partially_paid"
-        : docRow ? "issued" : "issued";
-      await admin.from("documents").update({ amount_paid_minor: paid, status, updated_at: new Date().toISOString() })
-        .eq("id", pay.document_id).eq("user_id", userId);
+      const { data, error } = await admin.rpc("delete_payment", { p_user_id: userId, p_payment_id: rel[1] });
+      if (error) return json({ error: "Payment could not be deleted" }, 409);
+      if (!data) return json({ error: "Payment not found" }, 404);
       return json({ ok: true });
     }
 
