@@ -5,6 +5,7 @@
  *   data-position      bottom-right | bottom-left (default bottom-right)
  *   data-color         hex colour (default #0ea5e9)
  *   data-button-text   floating button label (default "Get in Touch")
+ *   data-privacy-url   optional HTTPS origin for the privacy notice
  *
  * Exposes window.ReviewFlow.capture(data) for existing contact forms.
  */
@@ -215,6 +216,9 @@ function makeWidget(config: WidgetConfig): void {
   button.setAttribute('aria-controls','reviewflow-panel');
   button.innerHTML = `<span>${escapeText(buttonText)}</span><span class="rfw-header-star">★</span>`;
 
+  const privacyLink = config.privacyUrl
+    ? `<a class="rfw-privacy" href="${escapeText(config.privacyUrl)}" target="_blank" rel="noopener noreferrer">Privacy notice</a>`
+    : '';
   const panel = document.createElement('div');
   panel.className = 'rfw-panel';
   panel.id = 'reviewflow-panel';
