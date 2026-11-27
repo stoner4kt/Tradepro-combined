@@ -182,9 +182,10 @@ export default function SettingsPage() {
             </div>
           </Card>
           {deleteOpen ? (
-            <Modal title="Permanently delete account?" onClose={() => { setDeleteOpen(false); setDeletePhrase(''); setDeletePassword(''); }}>
+            <Modal title="Permanently delete account?" onClose={() => { setDeleteOpen(false); setDeletePhrase(''); setDeletePassword(''); setError(''); }}>
               <div className="space-y-4">
                 <p className="text-sm text-muted">This permanently deletes your account and associated data. Re-enter your password and type DELETE to confirm.</p>
+                {error ? <Alert tone="error">{error}</Alert> : null}
                 <Field label="Password">
                   <Input type="password" autoComplete="current-password" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} />
                 </Field>
