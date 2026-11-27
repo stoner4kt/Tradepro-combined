@@ -42,13 +42,13 @@ const SETTINGS_COLUMNS =
 const SETTINGS_UPDATE_FIELDS = [
   "business_name", "email", "phone", "reply_to_email", "currency", "locale",
   "tax_rate", "payment_terms_days", "quote_valid_days", "invoice_prefix",
-  "quote_prefix", "bank_details", "notes",
+  "quote_prefix", "bank_details", "notes", "business_address", "tax_number",
 ];
 
 const DOC_PATCH_FIELDS = [
   "external_customer_ref", "external_project_ref", "external_lead_ref",
   "customer_snapshot", "issue_date", "due_date", "quote_valid_until",
-  "title", "notes", "currency",
+  "title", "notes", "currency", "expires_at",
 ];
 
 const LINE_INPUT_FIELDS = ["description", "quantity", "unit_price_minor"];
@@ -653,6 +653,25 @@ serve(async (req: Request): Promise<Response> => {
           .eq("id", id).eq("user_id", userId);
         if (error) throw error;
         return json({ ok: true, status: "declined" });
+      }
+
+      if (method === "POST" && (action === "revoke-share" || action === "regenerate-share" || action === "set-expiry")) {
+        let body:Record<string,unknown>={};try{body=await req.json();}catch{/* optional */}
+        const patch:Record<string,unknown>={updated_at:new Date().toISOString()};
+        if(action==="revoke-share")patch.expires_at=new Date().toISOString();
+        if(action==="regenerate-share"){
+          const bytes=crypto.getRandomValues(new Uint8Array(32));
+          patch.token=Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("");
+          const expiry=body.expires_at?Date.parse(String(body.expires_at)):NaN;
+          patch.expires_at=Number.isFinite(expiry)&&expiry>Date.now()?new Date(expiry).toISOString():null;
+        }
+        if(action==="set-expiry"){
+          if(body.expires_at===null||body.expires_at==="")patch.expires_at=null;
+          else {const expiry=Date.parse(String(body.expires_at));if(!Number.isFinite(expiry)||expiry<=Date.now())return json({error:"Expiry must be a future date"},400);patch.expires_at=new Date(expiry).toISOString();}
+        }
+        const {error}=await admin.from("documents").update(patch).eq("id",id).eq("user_id",userId);
+        if(error)throw error;
+        return json({ok:true,expires_at:patch.expires_at??null});
       }
 
       if (method === "POST" && action === "mark-paid") {
