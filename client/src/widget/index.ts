@@ -224,29 +224,29 @@ function makeWidget(config: WidgetConfig): void {
     <form class="rfw-form" novalidate>
       <div class="rfw-row">
         <div class="rfw-field">
-          <label>First name</label>
-          <input name="first_name" type="text" autocomplete="given-name" />
+          <label for="rfw-first-name">First name</label>
+          <input id="rfw-first-name" name="first_name" type="text" autocomplete="given-name" />
         </div>
         <div class="rfw-field">
-          <label>Last name</label>
-          <input name="last_name" type="text" autocomplete="family-name" />
+          <label for="rfw-last-name">Last name</label>
+          <input id="rfw-last-name" name="last_name" type="text" autocomplete="family-name" />
         </div>
       </div>
       <div class="rfw-field">
-        <label>Email <span class="rfw-required">*</span></label>
-        <input name="email" type="email" required autocomplete="email" placeholder="you@example.com" />
+        <label for="rfw-email">Email <span class="rfw-required">*</span></label>
+        <input id="rfw-email" name="email" type="email" required autocomplete="email" placeholder="you@example.com" />
       </div>
       <div class="rfw-field">
-        <label>Phone</label>
-        <input name="phone" type="tel" autocomplete="tel" />
+        <label for="rfw-phone">Phone</label>
+        <input id="rfw-phone" name="phone" type="tel" autocomplete="tel" />
       </div>
       <div class="rfw-field">
-        <label>Service</label>
-        <input name="service" type="text" placeholder="What do you need?" />
+        <label for="rfw-service">Service</label>
+        <input id="rfw-service" name="service" type="text" placeholder="What do you need?" />
       </div>
       <div class="rfw-field">
-        <label>Message</label>
-        <textarea name="message" rows="3" placeholder="Optional notes…"></textarea>
+        <label for="rfw-message">Message</label>
+        <textarea id="rfw-message" name="message" rows="3" placeholder="Optional notes…"></textarea>
       </div>
       <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden"><label for="rfw-website">Leave this field empty</label><input id="rfw-website" name="website" tabindex="-1" autocomplete="off" /></div>\n      <label class="rfw-consent"><input name="consent" type="checkbox" required /> I agree to be contacted about this enquiry.</label>\n      <p class="rfw-error" role="alert" aria-live="polite"></p>
       <button type="submit" class="rfw-submit">Send Message</button>
