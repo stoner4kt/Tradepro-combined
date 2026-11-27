@@ -29,7 +29,8 @@ jobs:
         run: find supabase/functions -mindepth 2 -maxdepth 2 -name index.ts -not -path '*/_shared/*' -print0 | xargs -0 -n1 deno check
       - name: Test Svix webhook signatures
         run: deno test supabase/functions/invoicing-resend-webhook/svix.test.ts
-      - run: npm audit --omit=dev --audit-level=high
+      - name: Audit all dependencies
+        run: npm audit
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -43,8 +44,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+      - name: Audit all dependencies
+        run: npm audit
 
   supabase-migrations:
     runs-on: ubuntu-latest
