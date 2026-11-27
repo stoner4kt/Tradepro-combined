@@ -253,11 +253,23 @@ export const getInvoicingDocumentContent = (id: string, what: 'pdf' | 'view' | '
 export const listInvoicingPayments = (documentId: string) =>
   request<{ payments: InvoicingPayment[] }>(`/invoicing/payments/${documentId}`);
 
-export const addInvoicingPayment = (documentId: string, payload: Record<string, unknown>) =>
-  request<{ payment: InvoicingPayment }>(`/invoicing/payments/${documentId}`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+const pendingPaymentKeys = new Map<string, string>();
+export async function addInvoicingPayment(documentId: string, payload: Record<string, unknown>) {
+  const supplied = typeof payload.idempotency_key === 'string' ? payload.idempotency_key : '';
+  const key = supplied || pendingPaymentKeys.get(documentId) || crypto.randomUUID();
+  if (!supplied) pendingPaymentKeys.set(documentId, key);
+  try {
+    const result = await request<{ payment: InvoicingPayment; duplicate?: boolean }>(`/invoicing/payments/${documentId}`, {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, idempotency_key: key }),
+    });
+    pendingPaymentKeys.delete(documentId);
+    return result;
+  } catch (error) {
+    // Keep the same key on retry if the response was lost after the DB commit.
+    throw error;
+  }
+}
 
 export const deleteInvoicingPayment = (paymentId: string) =>
   request<{ ok: boolean }>(`/invoicing/payments/${paymentId}`, { method: 'DELETE' });
