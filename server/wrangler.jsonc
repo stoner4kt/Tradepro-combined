@@ -19,7 +19,7 @@
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
   "keep_vars": true,
-  "triggers": { "crons": ["*/15 * * * *", "0 3 * * *"] },
+  "triggers": { "crons": ["*/5 * * * *", "*/15 * * * *", "0 3 * * *"] },
   "observability": {
     "enabled": true
   }
@@ -68,6 +68,7 @@
 //   `npm run dev` (Node/tsx)        reads server/.env
 // Both are gitignored; see server/.dev.vars.example and server/.env.example.
 // ---------------------------------------------------------------------------
-// Scheduled triggers: every 15 minutes invokes invoicing-cron; daily at 03:00 UTC
+// Scheduled triggers: every 5 minutes atomically claims/sends due ReviewFlow reviews;
+// every 15 minutes invokes invoicing-cron; daily at 03:00 UTC
 // prunes expired auth_tokens and stale rate_limits through the service-role RPC.
 // Review auto-send remains a browser workflow until its atomic claim migration exists.
