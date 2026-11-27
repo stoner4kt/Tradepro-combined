@@ -168,6 +168,10 @@ export async function sendReviewForLead(
   if (!settings) return { ok: false, status: 500, body: { error: "Settings not configured" } };
   const s = settings as unknown as SettingsRow;
   const leadRow = lead as unknown as LeadRow;
+  if(leadRow.status !== 'complete')return {ok:false,status:409,body:{error:'Lead is not eligible for a review request'}};
+  const {data:optOut,error:optOutError}=await admin.schema("public").from("email_opt_outs").select("id").eq("user_id",userId).eq("email",leadRow.email.toLowerCase()).maybeSingle();
+  if(optOutError)return {ok:false,status:503,body:{error:'Unable to verify recipient preferences'}};
+  if(optOut)return {ok:false,status:409,body:{error:"Recipient has opted out"}};
 
   const subject = resolveTags(String(s.email_subject_template || ""), leadRow, s);
   const intro = resolveTags(String(s.email_intro_text || ""), leadRow, s);
@@ -189,9 +193,6 @@ export async function sendReviewForLead(
   const supabaseUrl=Deno.env.get("SUPABASE_URL")||"";
   const unsubscribeUrl=supabaseUrl.replace(/\/+$/,"")+"/functions/v1/reviewflow-unsubscribe?token="+encodeURIComponent(unsubscribeToken);
   const emailHtml=html+'<p style="font-size:12px;color:#64748b;text-align:center;margin-top:24px"><a href="'+unsubscribeUrl+'">Unsubscribe from review-request emails</a></p>';
-  const {data:optOut}=await admin.schema("public").from("email_opt_outs").select("id").eq("user_id",userId).eq("email",leadRow.email.toLowerCase()).maybeSingle();
-  if(optOut)return {ok:false,status:409,body:{error:"Recipient has opted out"}};
-
   const fromEmail = String(s.review_from_email || "");
   if (!fromEmail) {
     return { ok: false, status: 400, body: { error: "review_from_email is not configured. Verify a sender domain in Resend first." } };
