@@ -316,6 +316,9 @@ function makeWidget(config: WidgetConfig): void {
           phone: data.phone || null,
           service: data.service || null,
           message: data.message || null,
+          consent: data.consent === true,
+          website: data.website || '',
+          started_at: data.started_at || startedAt,
         }),
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string };
