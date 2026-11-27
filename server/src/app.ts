@@ -46,6 +46,16 @@ export function createApp(): express.Express {
     next();
   });
   app.use(express.json({ limit: '256kb' }));
+  const uuidParams = ['id', 'leadId', 'clientId', 'projectId', 'documentId', 'paymentId'];
+  for (const param of uuidParams) {
+    app.param(param, (req, res, next, value) => {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+        res.status(400).json({ error: { message: 'Invalid resource identifier' } });
+        return;
+      }
+      next();
+    });
+  }
 
   // Health
   app.get('/api/health', (_req, res) => {
