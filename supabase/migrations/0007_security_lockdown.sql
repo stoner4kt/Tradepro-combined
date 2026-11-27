@@ -46,3 +46,18 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA invoicing
   REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA invoicing
   REVOKE ALL ON SEQUENCES FROM PUBLIC, anon, authenticated;
+
+
+-- Supabase also creates objects as supabase_admin. Apply the same defaults
+-- when that managed role exists in the target project.
+DO $$
+DECLARE s text;
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='supabase_admin') THEN
+    FOREACH s IN ARRAY ARRAY['public','reviewflow','invoicing'] LOOP
+      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA %I REVOKE ALL ON TABLES FROM PUBLIC, anon, authenticated',s);
+      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA %I REVOKE ALL ON SEQUENCES FROM PUBLIC, anon, authenticated',s);
+      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA %I REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated',s);
+    END LOOP;
+  END IF;
+END $$;
