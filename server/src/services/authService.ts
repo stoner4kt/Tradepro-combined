@@ -65,6 +65,23 @@ export class AuthService {
     return this.admin !== null;
   }
 
+  async allowAuthenticatedRequest(userId: string): Promise<{ allowed: boolean; retryAfter: number }> {
+    if (!this.admin) return { allowed: true, retryAfter: 0 };
+    try {
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`authenticated-user:${userId}`));
+      const key = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+      const { data, error } = await this.admin.rpc('rate_limit_hit', {
+        p_key: key, p_window_seconds: 600, p_max: 600,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return { allowed: Boolean(row?.allowed), retryAfter: Math.max(1, Number(row?.retry_after || 60)) };
+    } catch (err) {
+      logger.warn('Authenticated request rate limiter unavailable; failing open', { error: (err as Error).message });
+      return { allowed: true, retryAfter: 0 };
+    }
+  }
+
   private async passwordPolicyError(password:string):Promise<string|null>{
     if(password.length<10||password.length>128)return 'Password must be 10–128 characters';
     if(new Set(['password123','password1234','1234567890','qwerty12345','letmein1234','welcome1234']).has(password.toLowerCase()))return 'Choose a less common password';
