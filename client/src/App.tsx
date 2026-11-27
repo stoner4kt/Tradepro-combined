@@ -3,6 +3,7 @@ import { useEffect, type ReactNode } from 'react';
 import { useAuth, AuthProvider } from './contexts/AuthContext.js';
 import Layout from './components/Layout.js';
 import { LoginPage, RegisterPage } from './pages/Auth.js';
+import { CheckYourInboxPage, ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from './pages/AuthFlows.js';
 import DashboardPage from './pages/Dashboard.js';
 import LeadsPage from './pages/Leads.js';
 import ClientsPage from './pages/Clients.js';
@@ -54,6 +55,10 @@ export default function App() {
               </PublicOnly>
             }
           />
+          <Route path="/check-your-inbox" element={<CheckYourInboxPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route
             path="/register"
             element={
