@@ -13,7 +13,6 @@ interface WorkerEnv {
   API_ORIGIN?: string;
   INVOICING_URL?: string;
   INVOICING_SECRET?: string;
-  API_ORIGIN?: string;
 }
 
 /** Scheduled work is stateless; all claims/limits are persisted in Postgres. */
