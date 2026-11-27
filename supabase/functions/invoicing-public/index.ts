@@ -9,7 +9,7 @@ async function digest(value:string):Promise<string>{
  return Array.from(new Uint8Array(d),b=>b.toString(16).padStart(2,"0")).join("");
 }
 async function limit(admin:ReturnType<typeof adminClient>,req:Request,kind:string,max:number,windowSeconds:number):Promise<boolean>{
- const ip=(req.headers.get("cf-connecting-ip")||req.headers.get("x-forwarded-for")||"unknown").split(",")[0].slice(0,64);
+ const ip=(req.headers.get("cf-connecting-ip")||"unknown").split(",")[0].slice(0,64);
  const key=await digest(`public-share:${kind}:${ip}`);
  const {data,error}=await admin.schema("public").rpc("rate_limit_hit",{p_key:key,p_window_seconds:windowSeconds,p_max:max});
  const row=Array.isArray(data)?data[0]:data;
