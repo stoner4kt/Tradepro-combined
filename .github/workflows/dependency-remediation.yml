@@ -25,7 +25,10 @@ jobs:
           node-version: 22
           cache: npm
       - name: Apply non-breaking and required major security updates
-        run: npm audit fix --force
+        run: |
+          npm audit fix --force || true
+          npm audit fix
+          npm audit --audit-level=high
       - name: Validate updated dependencies
         run: |
           npm run typecheck
