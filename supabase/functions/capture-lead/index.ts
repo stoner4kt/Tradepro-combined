@@ -9,6 +9,7 @@ function adminClient():SupabaseClient{
  if(!url||!key)throw new Error("Service unavailable");
  return createClient(url,key,{db:{schema:"reviewflow"}});
 }
+function escapeHtml(value:string):string{return value.replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]||ch));}
 async function hash(value:string):Promise<string>{
  const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));
  return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
@@ -54,5 +55,27 @@ serve(async(req:Request):Promise<Response>=>{
   source:"widget",status:"new",consent_at:new Date().toISOString(),consent_text:"I agree to be contacted about this enquiry.",source_url:origin
  }).select("id").single();
  if(error)return json({error:"Unable to save your enquiry"},500);
- return json({success:true,lead_id:lead.id},201);
+
+ // Acknowledgement is best-effort, capped per owner, and suppressed for opted-out recipients.
+ const {data:optOut,error:optOutError}=await publicDb.from("email_opt_outs").select("id").eq("user_id",owner.user_id).eq("email",email).maybeSingle();
+ const resendKey=Deno.env.get("RESEND_API_KEY")||"",from=Deno.env.get("RESEND_FROM_EMAIL")||"",replyTo=Deno.env.get("RESEND_REPLY_TO")||"";
+ if(!optOutError&&!optOut&&resendKey&&from){
+  const {data:capSettings}=await publicDb.from("settings").select("daily_email_cap").eq("user_id",owner.user_id).maybeSingle();
+  const cap=Math.max(1,Math.min(500,Number(capSettings?.daily_email_cap||50)));
+  const ackKey=await hash("capture-ack:"+owner.user_id);
+  const {data:capData,error:capError}=await publicDb.rpc("rate_limit_hit",{p_key:ackKey,p_window_seconds:86400,p_max:cap});
+  const capRow=Array.isArray(capData)?capData[0]:capData;
+  if(!capError&&capRow?.allowed){
+   const raw=crypto.getRandomValues(new Uint8Array(32));
+   const unsubscribeToken=Array.from(raw,b=>b.toString(16).padStart(2,"0")).join("");
+   const unsubscribeHash=await hash(unsubscribeToken);
+   const {error:tokenError}=await publicDb.from("email_opt_out_tokens").insert({user_id:owner.user_id,email,token_hash:unsubscribeHash,expires_at:new Date(Date.now()+180*86400000).toISOString()});
+   if(!tokenError){
+    const unsubscribeUrl=(Deno.env.get("SUPABASE_URL")||"").replace(/\/+$/,"")+"/functions/v1/reviewflow-unsubscribe?token="+encodeURIComponent(unsubscribeToken);
+    const html="<p>Thank you for contacting us. We have received your enquiry and will be in touch.</p><p><strong>Service:</strong> "+escapeHtml(service)+"</p><p><strong>Message:</strong> "+escapeHtml(message)+"</p><p><a href=\""+escapeHtml(unsubscribeUrl)+"\">Unsubscribe from review-request emails</a></p>";
+    try{await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+resendKey,"Content-Type":"application/json","Idempotency-Key":"tradepro-capture-ack-"+lead.id,"List-Unsubscribe":"<"+unsubscribeUrl+">","List-Unsubscribe-Post":"List-Unsubscribe=One-Click"},body:JSON.stringify({from,to:[email],subject:"We received your enquiry",html,reply_to:replyTo||undefined})});}catch{/* The lead is saved even if acknowledgement delivery fails. */}
+   }
+  }
+ }
+ return json({success:true,lead_id:lead.id});
 });
