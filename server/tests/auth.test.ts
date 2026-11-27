@@ -86,6 +86,14 @@ describe('Auth API', () => {
     expect(reset.status).toBe(400);
   });
 
+  it('requires authentication for the privacy export endpoint', async () => {
+    const unauthenticated = await request(app).get('/api/auth/export');
+    expect(unauthenticated.status).toBe(401);
+    const reg = await request(app).post('/api/auth/register').send({ email: 'export@example.com', password: PASSWORD });
+    const exported = await request(app).get('/api/auth/export').set('Authorization', `Bearer ${sessionToken(reg)}`);
+    expect(exported.status).toBe(501);
+  });
+
   it('clears the session cookie on logout', async () => {
     const res = await request(app).post('/api/auth/logout');
     expect(res.status).toBe(204);
