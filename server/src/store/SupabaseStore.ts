@@ -39,7 +39,7 @@ const CAPTURE_COLUMNS =
 const LOG_COLUMNS =
   'id,user_id,lead_id,client_id,to_email,subject,template,status,provider,sent_at';
 const SETTINGS_COLUMNS =
-  'id,user_id,business_name,business_type,reply_to_email,currency,email_notifications,created_at,updated_at';
+  'id,user_id,business_name,business_type,reply_to_email,currency,email_notifications,allowed_origins,daily_email_cap,created_at,updated_at';
 
 // ---------------------------------------------------------------------------
 // SupabaseStore — production data layer on top of Supabase REST + Supabase
@@ -431,6 +431,8 @@ export class SupabaseStore implements Store {
     if (patch.replyToEmail !== undefined) body.reply_to_email = patch.replyToEmail;
     if (patch.currency !== undefined) body.currency = patch.currency;
     if (patch.emailNotifications !== undefined) body.email_notifications = patch.emailNotifications;
+    if (patch.allowedOrigins !== undefined) body.allowed_origins = patch.allowedOrigins;
+    if (patch.dailyEmailCap !== undefined) body.daily_email_cap = patch.dailyEmailCap;
 
     const { data, error } = await this.sb
       .from('settings')
@@ -650,6 +652,8 @@ function mapSettings(row: Record<string, unknown>): Settings {
     replyToEmail: String(row.reply_to_email ?? ''),
     currency: String(row.currency ?? 'USD'),
     emailNotifications: Boolean(row.email_notifications ?? true),
+    allowedOrigins: Array.isArray(row.allowed_origins) ? row.allowed_origins as string[] : [],
+    dailyEmailCap: Number(row.daily_email_cap ?? 50),
     createdAt: String(row.created_at ?? ''),
     updatedAt: String(row.updated_at ?? ''),
   };
