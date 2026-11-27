@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { useEffect, lazy, Suspense, type ReactNode } from 'react';
+import { Component, useEffect, lazy, Suspense, type ReactNode } from 'react';
 import { useAuth, AuthProvider } from './contexts/AuthContext.js';
 import { LoginPage, RegisterPage } from './pages/Auth.js';
 import { CheckYourInboxPage, ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from './pages/AuthFlows.js';
@@ -14,6 +14,35 @@ const LedgerPage = lazy(() => import('./pages/Ledger.js'));
 const ReviewsPage = lazy(() => import('./pages/Reviews.js'));
 const InvoicingPage = lazy(() => import('./pages/Invoicing.js'));
 const PublicDocumentPage = lazy(() => import('./pages/PublicDocument.js'));
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error) {
+    // Avoid logging user or request data; detailed diagnostics belong in the
+    // configured monitoring service when one is enabled.
+    console.error('Application render failed', error.message);
+  }
+
+  render() {
+    if (this.state.failed) {
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-page p-6">
+          <section className="max-w-md rounded-xl border border-line bg-white p-8 text-center">
+            <h1 className="text-xl font-bold text-ink">Something went wrong</h1>
+            <p className="mt-2 text-sm text-muted">The page could not be displayed. Reload to try again.</p>
+            <button type="button" onClick={() => window.location.reload()} className="mt-5 rounded-lg bg-brand-600 px-4 py-3 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Reload page</button>
+          </section>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -48,6 +77,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ScrollToTop />
+        <ErrorBoundary>
         <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-page" role="status">Loading…</div>}>
         <Routes>
           <Route
@@ -95,6 +125,7 @@ export default function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
         </Suspense>
+        </ErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
   );
