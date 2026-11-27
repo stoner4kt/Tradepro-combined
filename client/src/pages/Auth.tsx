@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
 import { Alert, Button, Field, Input, Select } from '../components/ui.js';
 
@@ -26,9 +26,10 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle: str
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(searchParams.get('reason') === 'expired' ? 'Your session expired. Please sign in again.' : '');
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: FormEvent) => {
