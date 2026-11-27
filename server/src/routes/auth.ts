@@ -42,7 +42,7 @@ export function authRoutes(authService: AuthService): Router {
     }),
   );
 
-  router.post('/logout', (req, res) => { res.clearCookie('tradepro_session', { httpOnly: true, secure: config.isProduction, sameSite: 'lax', domain: config.cookieDomain || undefined, path: '/' }); res.status(204).end(); });
+  router.post('/logout', (req, res) => { res.clearCookie('tradepro_session', { httpOnly: true, secure: config.isProduction, sameSite: config.isProduction ? 'none' : 'lax', domain: config.cookieDomain || undefined, path: '/' }); res.status(204).end(); });
 
 
   router.post('/verify-email', asyncHandler(async (req,res)=>{
@@ -73,7 +73,7 @@ export function authRoutes(authService: AuthService): Router {
     if(token.length<32||token.length>256||password.length<10||password.length>128)return sendError(res,400,'Invalid reset request');
     const ok=await authService.completePasswordReset(token,password);
     if(!ok)return sendError(res,400,'Invalid or expired reset link');
-    res.clearCookie('tradepro_session',{httpOnly:true,secure:config.isProduction,sameSite:'lax',domain:config.cookieDomain||undefined,path:'/'});
+    res.clearCookie('tradepro_session',{httpOnly:true,secure:config.isProduction,sameSite:config.isProduction?'none':'lax',domain:config.cookieDomain||undefined,path:'/'});
     return res.json({message:'Password updated. Please sign in again.'});
   }));
 
