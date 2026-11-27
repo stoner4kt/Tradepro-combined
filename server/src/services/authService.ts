@@ -136,7 +136,7 @@ export class AuthService {
 
   private async sendAuthLink(email: string, path: string, token: string, subject: string): Promise<void> {
     if (!config.resend.apiKey || !config.appOrigin || !config.resend.fromEmail) throw new Error('Email verification delivery is not configured');
-    const url = `${config.appOrigin.replace(/\\/+$/, '')}/${path}?token=${encodeURIComponent(token)}`;
+    const url = `${config.appOrigin.replace(/\/+$/, '')}/${path}?token=${encodeURIComponent(token)}`;
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${config.resend.apiKey}`, 'Content-Type': 'application/json' },
