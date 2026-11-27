@@ -138,6 +138,9 @@ export function RegisterPage() {
             Sign in
           </Link>
         </p>
+        <p className="text-center text-xs text-muted">
+          By creating an account you acknowledge the <Link to="/terms" className="underline">Terms</Link> and <Link to="/privacy" className="underline">Privacy notice</Link>.
+        </p>
       </form>
     </AuthShell>
   );
