@@ -20,15 +20,15 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { adminClient } from "../_shared/invoicing/supabase.ts";
+import { timingSafeEqual } from "../_shared/security.ts";
 import { buildDocumentEmailHtml } from "../_shared/core/email.ts";
 import { fmtMoney, formatDate } from "../_shared/core/money.ts";
 
 function checkCronSecret(req: Request): boolean {
-  const expected = Deno.env.get("CRON_SECRET");
-  if (!expected) return false; // never open — the schedule is the auth
-  const header = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "") || "";
+  const expected = Deno.env.get("CRON_SECRET") || "";
+  const header = req.headers.get("Authorization")?.replace(/^Bearer\\s+/i, "") || "";
   const apikey = req.headers.get("x-app-apikey") || "";
-  return header === expected || apikey === expected;
+  return expected.length >= 32 && (timingSafeEqual(expected,header) || timingSafeEqual(expected,apikey));
 }
 
 async function sendReminderEmail(doc: DocRow, settings: SettingsRow): Promise<{ status: string; message_id: string | null; error?: string }> {
