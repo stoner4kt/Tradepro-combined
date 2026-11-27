@@ -32,9 +32,12 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   isProduction: process.env.NODE_ENV === 'production',
 
-  corsOrigin: process.env.CORS_ORIGIN || '*',
+  corsOrigin: process.env.CORS_ORIGIN || '',
+  appOrigin: process.env.APP_ORIGIN || '',
+  apiOrigin: process.env.API_ORIGIN || '',
+  cookieDomain: process.env.COOKIE_DOMAIN || '',
 
-  jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-me-in-production',
+  jwtSecret: process.env.JWT_SECRET || '',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
 
   supabase: {
@@ -107,4 +110,33 @@ export function loadSecretsHelpText(): string {
 export function ensureDataDir(): void {
   const dir = process.env.DATA_DIR || path.join(process.cwd(), '.data');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+/** Production must fail closed rather than boot with development credentials. */
+export function productionConfigErrors(): string[] {
+  if (!config.isProduction) return [];
+  const required = [
+    'JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY',
+    'SUPABASE_ANON_KEY', 'CORS_ORIGIN', 'INTEGRATION_SECRET',
+    'CRON_SECRET', 'COOKIE_DOMAIN',
+  ];
+  const missing = required.filter((key) => !process.env[key]?.trim());
+  const errors = missing.map((key) => `Missing required environment variable: ${key}`);
+  const secret = process.env.JWT_SECRET || '';
+  if (secret.length < 32 || secret === 'dev-secret-change-me-in-production') {
+    errors.push('JWT_SECRET must be at least 32 characters and not a development default');
+  }
+  const origin = process.env.CORS_ORIGIN || '';
+  try {
+    const parsed = new URL(origin);
+    if (parsed.protocol !== 'https:' || parsed.origin !== origin || origin === '*') {
+      errors.push('CORS_ORIGIN must be one exact HTTPS origin');
+    }
+  } catch {
+    errors.push('CORS_ORIGIN must be one exact HTTPS origin');
+  }
+  if (process.env.RESEND_API_KEY && !process.env.RESEND_WEBHOOK_SECRET) {
+    errors.push('RESEND_WEBHOOK_SECRET is required when Resend is enabled');
+  }
+  return errors;
 }
