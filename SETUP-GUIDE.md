@@ -399,7 +399,10 @@ The merged dashboard includes the standalone's auto-send behaviour:
 - While the Reviews page is open, a **5-minute polling loop** sends anything
   that became due (free-tier friendly — no cron required).
 
-For more reliable delivery you can add a real scheduler (e.g. Supabase
-`pg_cron` on the Pro plan, or a Cloudflare Worker Cron trigger) that calls
-`integration-send-review` with `email` / `external_id` + the integration
-secret + `x-user-id`. That is a drop-in replacement for the polling loop.
+Cloudflare Workers Cron Triggers are available on the free plan; they do not
+require an in-memory process to stay alive. A production scheduler should
+claim due rows atomically in Postgres before sending so multiple invocations
+cannot double-send. That server-side scheduled implementation is not yet
+included in this branch. Until it is implemented and tested, the current
+browser polling loop remains the active behaviour; do not assume background
+sending occurs while the Reviews tab is closed.
