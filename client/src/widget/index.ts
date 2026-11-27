@@ -248,7 +248,9 @@ function makeWidget(config: WidgetConfig): void {
         <label for="rfw-message">Message</label>
         <textarea id="rfw-message" name="message" rows="3" placeholder="Optional notes…"></textarea>
       </div>
-      <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden"><label for="rfw-website">Leave this field empty</label><input id="rfw-website" name="website" tabindex="-1" autocomplete="off" /></div>\n      <label class="rfw-consent"><input name="consent" type="checkbox" required /> I agree to be contacted about this enquiry.</label>\n      <p class="rfw-error" role="alert" aria-live="polite"></p>
+      <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden"><label for="rfw-website">Leave this field empty</label><input id="rfw-website" name="website" tabindex="-1" autocomplete="off" /></div>
+      <label class="rfw-consent"><input name="consent" type="checkbox" required /> I agree to be contacted about this enquiry.</label>
+      <p class="rfw-error" role="alert" aria-live="polite"></p>
       <button type="submit" class="rfw-submit">Send Message</button>
     </form>
     <div class="rfw-thanks" role="status" aria-live="polite">
@@ -269,14 +271,16 @@ function makeWidget(config: WidgetConfig): void {
   const submitBtn = panel.querySelector<HTMLButtonElement>('.rfw-submit')!;
   const closeBtn = panel.querySelector<HTMLButtonElement>('.rfw-close')!;
 
-  let mode = STATE_CLOSED;\n  const startedAt = Date.now();
+  let mode = STATE_CLOSED;
+  const startedAt = Date.now();
 
   function setState(next: string): void {
     mode = next;
     const isOpen = next === STATE_OPEN || next === STATE_THANKS;
     panel.classList.toggle('rfw-open', isOpen);
     panel.classList.toggle('rfw-thanks', next === STATE_THANKS);
-    button.classList.toggle('rfw-hidden', isOpen);\n    button.setAttribute('aria-expanded',String(isOpen));
+    button.classList.toggle('rfw-hidden', isOpen);
+    button.setAttribute('aria-expanded',String(isOpen));
   }
 
   function showError(message: string): void {
@@ -290,7 +294,9 @@ function makeWidget(config: WidgetConfig): void {
   }
 
   async function submit(data: CaptureData): Promise<{ ok: boolean; error?: string }> {
-    if (!data.email) return { ok: false, error: 'Email is required.' };\n    if (data.consent !== true) return { ok: false, error: 'Please consent to being contacted.' };\n    if (data.website) return { ok: false, error: 'Unable to submit this form.' };
+    if (!data.email) return { ok: false, error: 'Email is required.' };
+    if (data.consent !== true) return { ok: false, error: 'Please consent to being contacted.' };
+    if (data.website) return { ok: false, error: 'Unable to submit this form.' };
     const email = data.email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return { ok: false, error: 'Please enter a valid email address.' };
@@ -346,7 +352,10 @@ function makeWidget(config: WidgetConfig): void {
       email: String(fd.get('email') || ''),
       phone: String(fd.get('phone') || ''),
       service: String(fd.get('service') || ''),
-      message: String(fd.get('message') || ''),\n      consent: fd.get('consent') === 'on',\n      website: String(fd.get('website') || ''),\n      started_at: startedAt,
+      message: String(fd.get('message') || ''),
+      consent: fd.get('consent') === 'on',
+      website: String(fd.get('website') || ''),
+      started_at: startedAt,
     };
     submitBtn.disabled = true;
     submitBtn.textContent = 'Sending…';
