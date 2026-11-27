@@ -22,7 +22,7 @@ serve(async(req:Request):Promise<Response>=>{
  const kind=parts[1],token=parts[2],action=parts[3]||"";
  if(req.method!=="GET"&&!(req.method==="POST"&&kind==="quote"&&action==="respond"))return json({error:"Method not allowed"},405);
  let admin;try{admin=adminClient();}catch{return json({error:"Service unavailable"},503);}
- if(!(await limit(admin,req,kind,req.method==="GET"?60:10,req.method==="GET"?60:3600))return json({error:"Too many requests"},429);
+ if(!(await limit(admin,req,kind+":"+token,req.method==="GET"?60:10,req.method==="GET"?60:3600))return json({error:"Too many requests"},429);
  const {data:doc,error}=await admin.from("documents").select("id,user_id,kind,number,status,customer_snapshot,issue_date,due_date,quote_valid_until,title,notes,currency,subtotal_minor,tax_minor,total_minor,amount_paid_minor,created_at,token,expires_at,meta").eq("token",token).maybeSingle();
  if(error||!doc||doc.kind!==kind||["void","declined","draft"].includes(doc.status)||(doc.expires_at&&Date.parse(doc.expires_at)<=Date.now()))return json({error:"This document is unavailable"},404);
  if(req.method==="POST"){
