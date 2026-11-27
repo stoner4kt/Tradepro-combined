@@ -1,18 +1,19 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, lazy, Suspense, type ReactNode } from 'react';
 import { useAuth, AuthProvider } from './contexts/AuthContext.js';
-import Layout from './components/Layout.js';
 import { LoginPage, RegisterPage } from './pages/Auth.js';
 import { CheckYourInboxPage, ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from './pages/AuthFlows.js';
-import DashboardPage from './pages/Dashboard.js';
-import LeadsPage from './pages/Leads.js';
-import ClientsPage from './pages/Clients.js';
-import ProjectsPage from './pages/Projects.js';
-import SettingsPage from './pages/Settings.js';
-import LedgerPage from './pages/Ledger.js';
-import ReviewsPage from './pages/Reviews.js';
-import InvoicingPage from './pages/Invoicing.js';
-import PublicDocumentPage from './pages/PublicDocument.js';
+
+const Layout = lazy(() => import('./components/Layout.js'));
+const DashboardPage = lazy(() => import('./pages/Dashboard.js'));
+const LeadsPage = lazy(() => import('./pages/Leads.js'));
+const ClientsPage = lazy(() => import('./pages/Clients.js'));
+const ProjectsPage = lazy(() => import('./pages/Projects.js'));
+const SettingsPage = lazy(() => import('./pages/Settings.js'));
+const LedgerPage = lazy(() => import('./pages/Ledger.js'));
+const ReviewsPage = lazy(() => import('./pages/Reviews.js'));
+const InvoicingPage = lazy(() => import('./pages/Invoicing.js'));
+const PublicDocumentPage = lazy(() => import('./pages/PublicDocument.js'));
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -47,6 +48,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ScrollToTop />
+        <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-page" role="status">Loading…</div>}>
         <Routes>
           <Route
             path="/login"
@@ -92,6 +94,7 @@ export default function App() {
           <Route path="/i/:token" element={<PublicDocumentPage kind="invoice" />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   );
