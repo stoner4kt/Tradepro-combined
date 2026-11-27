@@ -44,23 +44,29 @@ serve(async(req:Request):Promise<Response>=>{
  if(!status || !messageId) return json({ok:true,ignored:true});
  try{
   const admin=adminClient();
-  const {data:seen,error:seenError}=await admin.from("webhook_receipts").select("svix_id").eq("svix_id",verified.id).maybeSingle();
-  if(seenError)return json({error:"Webhook processing unavailable"},500);
-  if(seen)return json({ok:true,duplicate:true});
+  const ip=(req.headers.get("cf-connecting-ip")||req.headers.get("x-forwarded-for")||"unknown").split(",")[0].slice(0,64);
+  const ipDigest=await crypto.subtle.digest("SHA-256",encoder.encode("resend-webhook:"+ip));
+  const rateKey=Array.from(new Uint8Array(ipDigest),b=>b.toString(16).padStart(2,"0")).join("");
+  const {data:rateData,error:rateError}=await admin.schema("public").rpc("rate_limit_hit",{p_key:rateKey,p_window_seconds:60,p_max:120});
+  const rate=Array.isArray(rateData)?rateData[0]:rateData;
+  if(rateError)return json({error:"Webhook rate limiter unavailable"},503);
+  if(!rate?.allowed)return json({error:"Too many webhook requests"},429);
+
+  // Unique insert serializes concurrent deliveries with the same Svix ID.
+  const {error:claimError}=await admin.from("webhook_receipts").insert({svix_id:verified.id});
+  if(claimError?.code==="23505")return json({ok:true,duplicate:true});
+  if(claimError)return json({error:"Webhook processing unavailable"},500);
   const {data:row,error}=await admin.from("email_events").select("id,meta,status").eq("message_id",messageId).maybeSingle();
-  if(error) return json({error:"Webhook processing unavailable"},500);
+  if(error){await admin.from("webhook_receipts").delete().eq("svix_id",verified.id);return json({error:"Webhook processing unavailable"},500);}
   if(row){
     const priority:Record<string,number>={queued:0,sent:1,delivered:2,bounced:3,complained:4,failed:3};
     const current=String(row.status||"queued");
     if((priority[status]??0)>(priority[current]??0)){
       const meta={...((row.meta&&typeof row.meta==="object")?row.meta:{}),webhook_type:event.type,svix_id:verified.id};
       const {error:updateError}=await admin.from("email_events").update({status,meta}).eq("id",row.id);
-      if(updateError) return json({error:"Webhook processing unavailable"},500);
+      if(updateError){await admin.from("webhook_receipts").delete().eq("svix_id",verified.id);return json({error:"Webhook processing unavailable"},500);}
     }
   }
-  const {error:dedupeError}=await admin.from("webhook_receipts").insert({svix_id:verified.id});
-  if(dedupeError && dedupeError.code==="23505") return json({ok:true,duplicate:true});
-  if(dedupeError) return json({error:"Webhook processing unavailable"},500);
   return json({ok:true,ignored:!row});
  }catch{return json({error:"Webhook processing unavailable"},500);}
 });
