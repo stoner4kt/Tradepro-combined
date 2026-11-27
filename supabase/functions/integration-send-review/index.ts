@@ -287,6 +287,7 @@ serve(async (req) => {
         failed++;
         const release:Record<string,unknown>={review_send_claimed_at:null};
         if(result.status===409)release.review_send_after=null;
+        if(result.status===429)release.review_send_after=new Date(Date.now()+86400000).toISOString();
         await admin.from("leads").update(release).eq("id",lead.id).eq("user_id",lead.user_id);
       }
     }
