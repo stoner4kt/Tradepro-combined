@@ -72,9 +72,11 @@ export class AuthService {
       const digest=await crypto.subtle.digest('SHA-1',new TextEncoder().encode(password));
       const hash=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
       const prefix=hash.slice(0,5),suffix=hash.slice(5);
-      const response=await fetch(`https://api.pwnedpasswords.com/range/${prefix}`,{headers:{'Add-Padding':'true'}});
+      const controller=new AbortController();
+      const timeout=setTimeout(()=>controller.abort(),3000);
+      const response=await fetch(`https://api.pwnedpasswords.com/range/${prefix}`,{headers:{'Add-Padding':'true'},signal:controller.signal}).finally(()=>clearTimeout(timeout));
       if(!response.ok)throw new Error(`HIBP status ${response.status}`);
-      const matches=(await response.text()).split(/\\r?\\n/).some(line=>{const [candidate,count]=line.split(':');return candidate===suffix&&Number(count)>0;});
+      const matches=(await response.text()).split(/\r?\n/).some(line=>{const [candidate,count]=line.split(':');return candidate===suffix&&Number(count)>0;});
       if(matches)return 'Choose a password that has not appeared in known data breaches';
     }catch(err){logger.warn('Password breach check unavailable; continuing with local policy',{error:(err as Error).message});}
     return null;
