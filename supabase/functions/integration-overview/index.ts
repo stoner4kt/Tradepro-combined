@@ -37,6 +37,8 @@ serve(async (req) => {
 
   try {
     const admin = adminClient();
+    const { data: profile, error: profileError } = await admin.schema("public").from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (profileError || !profile) return json({ error: "Unknown tenant" }, 403);
     const [settingsRes, leadsRes, reviewsRes] = await Promise.all([
       admin.from("settings").select("*").eq("user_id", userId).maybeSingle(),
       admin.from("leads").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
