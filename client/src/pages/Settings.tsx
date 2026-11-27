@@ -51,7 +51,7 @@ export default function SettingsPage() {
       replyToEmail: String(f.get('replyToEmail') ?? ''),
       currency: String(f.get('currency') ?? 'USD'),
       emailNotifications: f.get('emailNotifications') === 'on',
-      allowedOrigins: String(f.get('allowedOrigins') ?? '').split(/\\r?\\n/).map((v) => v.trim()).filter(Boolean),
+      allowedOrigins: String(f.get('allowedOrigins') ?? '').split(/\r?\n/).map((v) => v.trim()).filter(Boolean),
       dailyEmailCap: Number(f.get('dailyEmailCap') ?? 50),
     };
     try {
