@@ -66,10 +66,10 @@ export const config = {
   // INTEGRATION_SECRET env is accepted as an alias.
   reviewflow: {
     // The Supabase project URL — edge functions live under /functions/v1.
-    url: process.env.REVIEWFLOW_URL || process.env.REVIEWFLOW_SUPABASE_URL || '',
+    url: process.env.REVIEWFLOW_URL || process.env.REVIEWFLOW_SUPABASE_URL || process.env.SUPABASE_URL || '',
     secret: process.env.REVIEWFLOW_SECRET || process.env.INTEGRATION_SECRET || '',
     // Feature flag — outbound notifications only fire when a URL + secret are set.
-    enabled: Boolean(process.env.REVIEWFLOW_URL && (process.env.REVIEWFLOW_SECRET || process.env.INTEGRATION_SECRET)),
+    enabled: Boolean((process.env.REVIEWFLOW_URL || process.env.REVIEWFLOW_SUPABASE_URL || process.env.SUPABASE_URL) && (process.env.REVIEWFLOW_SECRET || process.env.INTEGRATION_SECRET)),
     // Send review email automatically when a CRM project is completed.
     autoSend: bool(process.env.REVIEWFLOW_AUTO_SEND, true),
   },
