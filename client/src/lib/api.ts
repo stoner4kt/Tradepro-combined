@@ -27,7 +27,7 @@ async function request<T>(path: string, options: RequestInit = {}, authed = true
     'X-TradePro': '1',
     ...(options.headers as Record<string, string>),
   };
-  void authed;
+
 
   // In dev (Vite) we use the same-origin proxy (/api -> localhost:4000).
   // In a production build, VITE_API_URL points at the deployed Worker so the
@@ -57,6 +57,7 @@ async function request<T>(path: string, options: RequestInit = {}, authed = true
   }
 
   if (!res.ok) {
+    if (res.status === 401 && authed && path !== '/auth/me') window.dispatchEvent(new Event('tradepro:unauthorized'));
     const detail = body as { error?: { message?: string; fields?: Record<string, unknown> } } | undefined;
     throw new ApiError(res.status, detail?.error?.message || `Request failed (${res.status})`, detail?.error?.fields);
   }
@@ -69,13 +70,13 @@ export interface AuthResult {
 }
 
 export const login = (email: string, password: string) =>
-  request<AuthResult>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+  request<AuthResult>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, false);
 
 export const register = (payload: { email: string; password: string; fullName?: string; businessName?: string }) =>
   request<{ user?: import('../types/api.js').User; message?: string }>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  }, false);
 
 export const me = () => request<{ user: import('../types/api.js').User }>('/auth/me');
 export const logout = () => request<void>('/auth/logout', { method: 'POST' });
