@@ -124,7 +124,7 @@ export class SupabaseStore implements Store {
       .from('profiles')
       .update(body)
       .eq('id', id)
-      .select(CLIENT_COLUMNS)
+      .select('id,full_name,business_name,business_type,phone,email,created_at,updated_at')
       .maybeSingle();
     if (error) throw new Error(`updateProfile failed: ${error.message}`);
     return data ? mapProfile(data) : null;
