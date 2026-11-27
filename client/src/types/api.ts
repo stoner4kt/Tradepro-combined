@@ -271,6 +271,8 @@ export interface InvoicingSettings {
   next_invoice_number: number;
   next_quote_number: number;
   bank_details: string;
+  business_address: string;
+  tax_number: string;
   notes: string;
 }
 
