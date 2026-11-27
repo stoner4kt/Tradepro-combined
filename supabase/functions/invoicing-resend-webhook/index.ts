@@ -47,11 +47,16 @@ serve(async(req:Request):Promise<Response>=>{
   const {data:seen,error:seenError}=await admin.from("webhook_receipts").select("svix_id").eq("svix_id",verified.id).maybeSingle();
   if(seenError)return json({error:"Webhook processing unavailable"},500);
   if(seen)return json({ok:true,duplicate:true});
-  const {data:row,error}=await admin.from("email_events").select("id").eq("message_id",messageId).maybeSingle();
+  const {data:row,error}=await admin.from("email_events").select("id,meta,status").eq("message_id",messageId).maybeSingle();
   if(error) return json({error:"Webhook processing unavailable"},500);
   if(row){
-    const {error:updateError}=await admin.from("email_events").update({status,meta:{webhook_type:event.type,svix_id:verified.id}}).eq("id",row.id);
-    if(updateError) return json({error:"Webhook processing unavailable"},500);
+    const priority:Record<string,number>={queued:0,sent:1,delivered:2,bounced:3,complained:4,failed:3};
+    const current=String(row.status||"queued");
+    if((priority[status]??0)>(priority[current]??0)){
+      const meta={...((row.meta&&typeof row.meta==="object")?row.meta:{}),webhook_type:event.type,svix_id:verified.id};
+      const {error:updateError}=await admin.from("email_events").update({status,meta}).eq("id",row.id);
+      if(updateError) return json({error:"Webhook processing unavailable"},500);
+    }
   }
   const {error:dedupeError}=await admin.from("webhook_receipts").insert({svix_id:verified.id});
   if(dedupeError && dedupeError.code==="23505") return json({ok:true,duplicate:true});
