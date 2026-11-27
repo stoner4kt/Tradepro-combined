@@ -30,6 +30,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refreshUser().finally(() => setLoading(false));
   }, [refreshUser]);
 
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setUser(null);
+      if (window.location.pathname !== '/login') window.location.assign('/login?reason=expired');
+    };
+    window.addEventListener('tradepro:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('tradepro:unauthorized', onUnauthorized);
+  }, []);
+
+
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.login(email, password);
     setUser(res.user);
