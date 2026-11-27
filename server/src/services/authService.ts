@@ -133,7 +133,7 @@ export class AuthService {
     if (error) return null;
     await this.admin.from('profiles').update({email_verified_at:new Date().toISOString()}).eq('id',row.user_id);
     const profile=await this.sbProfile(row.user_id,'');
-    return {token:signUserToken(profile),user:toAuthUser(profile),provider:'supabase'};
+    return {token:signUserToken(profile, await this.getTokenVersion(row.user_id)),user:toAuthUser(profile),provider:'supabase'};
   }
 
   private async hashToken(rawToken:string):Promise<string>{
@@ -158,9 +158,19 @@ export class AuthService {
     if(!consumed)return false;
     const {error}=await this.admin.auth.admin.updateUserById(row.user_id,{password:newPassword});
     if(error)return false;
-    await this.admin.from('profiles').update({token_version: (await this.getTokenVersion(row.user_id))+1}).eq('id',row.user_id);
+    await this.bumpTokenVersion(row.user_id);
     return true;
   }
+
+  async bumpTokenVersion(userId:string):Promise<number>{
+    if(!this.admin)return 0;
+    const next=(await this.getTokenVersion(userId))+1;
+    const {error}=await this.admin.from('profiles').update({token_version:next}).eq('id',userId);
+    if(error)throw error;
+    return next;
+  }
+
+  async isTokenVersionValid(userId:string,version:number):Promise<boolean>{return (await this.getTokenVersion(userId))===version;}
 
   async getTokenVersion(userId:string):Promise<number>{
     if(!this.admin)return 0;
@@ -179,7 +189,7 @@ export class AuthService {
           return { error: error?.message || 'Invalid credentials', status: 401, provider: 'supabase' };
         }
         const user = await this.sbProfile(data.user.id, data.user.email ?? input.email);
-        return { token: signUserToken(user), user: toAuthUser(user), provider: 'supabase' };
+        return { token: signUserToken(user, await this.getTokenVersion(user.id)), user: toAuthUser(user), provider: 'supabase' };
       } catch (err) {
         logger.error('Supabase login failed', { err: (err as Error).message });
         return { error: 'Supabase login failed', status: 500, provider: 'supabase' };
