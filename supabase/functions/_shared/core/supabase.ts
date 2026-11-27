@@ -38,8 +38,7 @@ export function adminClient(): SupabaseClient {
 
 /**
  * Verifies the x-integration-secret header against INTEGRATION_SECRET.
- * When INTEGRATION_SECRET is unset the check is skipped (local dev) — set it
- * in production exactly like the ReviewFlow integration functions.
+ * The check fails closed when INTEGRATION_SECRET is unset or too short.
  */
 export function checkIntegrationSecret(req: Request): boolean {
   return requireIntegrationSecret(req);
